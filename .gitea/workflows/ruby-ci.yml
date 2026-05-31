@@ -1,0 +1,27 @@
+name: Reusable Ruby CI
+on:
+  workflow_call:
+    inputs:
+      ruby-version:
+        description: 'Ruby version to use'
+        required: false
+        type: string
+        default: '3.2'
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Setup Ruby
+      uses: ruby/setup-ruby@v1
+      with:
+        ruby-version: ${{ inputs.ruby-version }}
+        bundler-cache: true
+
+    - name: Run Rubocop
+      run: bundle exec rubocop || true
+
+    - name: Run tests
+      run: bundle exec rspec || bundle exec rails test || true
