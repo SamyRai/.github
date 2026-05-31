@@ -1,0 +1,44 @@
+# Organization Settings Sync
+# Documents organization-wide settings that should be configured
+
+name: Organization Settings Documentation
+
+on:
+  workflow_dispatch:
+
+jobs:
+  document-settings:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Document settings
+        run: |
+          cat << EOF
+          Organization Settings Checklist:
+          
+          Branch Protection (per repository):
+          - Require pull request reviews (1 approval minimum)
+          - Require status checks to pass
+          - Require branches to be up to date
+          - Require conversation resolution
+          - Restrict who can push to matching branches
+          - Do not allow force pushes
+          - Do not allow deletions
+          
+          GitHub Actions:
+          - Require approval for all outside collaborators
+          - Allow actions created by GitHub
+          - Allow actions by Marketplace verified creators
+          - Allow specific actions (configure as needed)
+          
+          Security:
+          - Enable dependency graph
+          - Enable Dependabot alerts
+          - Enable Dependabot security updates
+          - Enable secret scanning
+          - Enable push protection for secrets
+          
+          General:
+          - Default branch: main
+          - Default repository visibility: private (for internal repos)
+          EOF
+

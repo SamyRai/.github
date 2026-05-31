@@ -1,12 +1,5 @@
 # Contributor Covenant Code of Conduct
 
-SamyRai projects follow the Contributor Covenant Code of Conduct, version 2.1.
+## Our Pledge
 
-All contributors, maintainers, and participants are expected to be respectful, inclusive, and constructive in project spaces.
-
-The full text is available at:
-https://www.contributor-covenant.org/version/2/1/code_of_conduct/
-
-Report unacceptable behavior privately to:
-security@glpx.pro
-
+We as members, contributors, and leaders pledge to make participation in our community a harassment-free experience for everyone, regardless of age, body size, visible or invisible disability, ethnicity, sex characteristics, gender identity and expression, level of experience, education, socio-economic status, nationality, personal appearance, race, religion, or sexual identity and orientation.

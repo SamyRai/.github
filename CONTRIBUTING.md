@@ -1,30 +1,15 @@
-# Contributing
+# Contributing to Glowing Pixels UG
 
-Thanks for your interest in contributing.
+We love your input! We want to make contributing to this project as easy and transparent as possible.
 
-## Before Opening Work
-
-- Search existing issues and pull requests first.
-- Open an issue for substantial behavior changes before starting implementation.
-- Keep pull requests focused and small.
-- Do not include secrets, credentials, private keys, tokens, or private data in issues, pull requests, logs, screenshots, fixtures, or examples.
-
-## Development Setup
-
-Use the setup and test commands documented in the target repository's README, package manifest, Makefile, or project docs.
-
-If the repository does not document a setup path yet, include the commands you used in your issue or pull request so maintainers can reproduce your work.
+## Our Operating Model: Gitea-First
+The Glowing Pixels source-control operating model is **Gitea-first**: 
+- **Active development and GitOps writes happen in Gitea** (`https://gitea.bk.glpx.pro`).
+- GitHub is used **only as an outbound backup mirror**. Please do not open PRs on GitHub, as they will not trigger our primary CI/CD pipelines.
 
 ## Pull Requests
-
-Pull requests should include:
-
-- A clear summary of the change.
-- The user-facing impact or bug being fixed.
-- Tests, examples, or documentation updates where relevant.
-- Any compatibility, migration, or release notes maintainers should consider.
-
-## Review
-
-Maintainers prioritize correctness, small diffs, backwards compatibility, and reproducible verification. Reviews may ask for changes to scope, tests, documentation, or implementation approach.
-
+1. Fork the repo and create your branch from `main`.
+2. Ensure your changes align with our strictly isolated Hub-and-Spoke GitOps model.
+3. If you've changed APIs or Infrastructure, update the corresponding Runbooks or `ARCHITECTURE.md`.
+4. Ensure the test suite passes (including Trivy scans for images).
+5. Open your Pull Request on our Gitea instance!
