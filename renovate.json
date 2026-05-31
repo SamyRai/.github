@@ -1,0 +1,53 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": [
+    "config:recommended",
+    "docker:enableMajor",
+    "helpers:pinGitHubActionDigests",
+    ":combinePatchMinorReleases",
+    ":semanticCommits"
+  ],
+  "labels": ["dependencies"],
+  "assignees": ["mukimovd"],
+  "kubernetes": {
+    "fileMatch": ["\\.yaml$"]
+  },
+  "helmv3": {
+    "fileMatch": ["(^|/)Chart\\.yaml$"]
+  },
+  "customManagers": [
+    {
+      "description": "Update Docker images defined in generic Helm values.yaml files",
+      "customType": "regex",
+      "fileMatch": ["(^|/)values\\.yaml$"],
+      "matchStrings": [
+        "image:\\s*repository:\\s*(?<depName>[a-zA-Z0-9_.-]+(?:/[a-zA-Z0-9_.-]+)*)\\s*tag:\\s*\"?(?<currentValue>[^\"\\s]+)\"?"
+      ],
+      "datasourceTemplate": "docker"
+    },
+    {
+      "description": "Update Gitea workflow actions",
+      "customType": "regex",
+      "fileMatch": ["^\\.gitea/workflows/[^/]+\\.ya?ml$"],
+      "matchStrings": [
+        "uses:\\s*(?<depName>[^@]+)@(?<currentValue>[^\\s]+)"
+      ],
+      "datasourceTemplate": "github-tags"
+    }
+  ],
+  "packageRules": [
+    {
+      "matchUpdateTypes": ["minor", "patch"],
+      "matchDatasources": ["docker", "helm"],
+      "automerge": true,
+      "automergeType": "pr",
+      "platformAutomerge": true
+    },
+    {
+      "matchDatasources": ["go"],
+      "matchUpdateTypes": ["minor", "patch"],
+      "automerge": true,
+      "groupName": "all non-major go dependencies"
+    }
+  ]
+}
