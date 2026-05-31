@@ -1,0 +1,12 @@
+# This file contains a list of Git commit hashes that should be ignored by `git blame`.
+# This is particularly useful for massive auto-formatting commits (e.g. running gofmt, prettier, or black across the whole repo)
+# which would otherwise pollute the git blame history and hide the original author of the code logic.
+#
+# To automatically configure git to use this file in this repository, run:
+# git config blame.ignoreRevsFile .git-blame-ignore-revs
+#
+# Both GitHub and Gitea natively support parsing this file when displaying file history/blame in the web UI!
+
+# Example format:
+# # Run `gofmt -w .` across the codebase
+# 1a2b3c4d5e6f7g8h9i0j1k2l3m4n5o6p7q8r9s0t

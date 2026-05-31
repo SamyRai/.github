@@ -1,0 +1,25 @@
+# GLPX Default CODEOWNERS
+# This file is used by both GitHub and Gitea to automatically request reviews
+# from the appropriate team members when specific files are modified in a Pull Request.
+#
+# As this is located in the organizational template repository, it acts as a fallback
+# for any repository in the organization that does not define its own CODEOWNERS file.
+
+# Global fallback: By default, ask the main maintainer (Damir) for review
+* @mukimovd
+
+# Require DevOps/Infrastructure review for critical core files
+/.github/ @mukimovd
+/.gitea/ @mukimovd
+/Makefile @mukimovd
+Dockerfile @mukimovd
+
+# Infrastructure as Code (Helm/Kustomize)
+/charts/ @mukimovd
+/manifests/ @mukimovd
+/helm/ @mukimovd
+/kustomize/ @mukimovd
+
+# CI/CD Pipelines
+/.github/workflows/ @mukimovd
+/.gitea/workflows/ @mukimovd

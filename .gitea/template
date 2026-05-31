@@ -1,0 +1,16 @@
+# This file configures the Gitea repository template expansion feature.
+# When a new repository is created using this repository as a template via the Gitea UI,
+# Gitea will search through the files listed below and replace template variables 
+# (e.g. ${REPO_NAME}, ${REPO_DESCRIPTION}, ${CLONE_URL_SSH}, ${OWNER_NAME}) 
+# with the actual values for the newly created repository.
+
+# List of files/globs to expand variables in:
+globs:
+  - "README.md"
+  - "SECURITY.md"
+  - "CONTRIBUTING.md"
+  - "profile/README.md"
+
+# You can also specify files to completely ignore during template creation:
+# ignore:
+#   - ".github/"
