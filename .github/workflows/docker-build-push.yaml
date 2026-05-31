@@ -1,15 +1,20 @@
 name: Docker Build & Push
 
 on:
-  push:
-    branches:
-      - main
-    tags:
-      - "v*"
+  workflow_call:
+    inputs:
+      image-name:
+        required: false
+        type: string
+    secrets:
+      REGISTRY_USERNAME:
+        required: true
+      REGISTRY_PASSWORD:
+        required: true
 
 env:
   REGISTRY: registry.bk.glpx.pro
-  IMAGE_NAME: ${{ gitea.repository || github.repository }}
+  IMAGE_NAME: ${{ inputs.image-name || gitea.repository || github.repository }}
 
 jobs:
   build-and-push:
@@ -25,8 +30,8 @@ jobs:
         uses: docker/login-action@v3
         with:
           registry: ${{ env.REGISTRY }}
-          username: ${{ secrets.HARBOR_USERNAME }}
-          password: ${{ secrets.HARBOR_PASSWORD }}
+          username: ${{ secrets.REGISTRY_USERNAME }}
+          password: ${{ secrets.REGISTRY_PASSWORD }}
 
       - name: Extract metadata (tags, labels) for Docker
         id: meta
