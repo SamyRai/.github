@@ -1,0 +1,50 @@
+name: Reusable Go Integration CI
+on:
+  workflow_call:
+    inputs:
+      go-version:
+        description: 'Go version to use'
+        required: false
+        type: string
+        default: '1.24'
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}-integration
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  integration-test:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:15-alpine
+        env:
+          POSTGRES_DB: testdb
+          POSTGRES_USER: testuser
+          POSTGRES_PASSWORD: testpassword
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    steps:
+    - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+
+    - name: Set up Go
+      uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5
+      with:
+        go-version: ${{ inputs.go-version }}
+
+    - name: Run Integration Tests
+      env:
+        DB_HOST: localhost
+        DB_PORT: 5432
+        DB_USER: testuser
+        DB_PASS: testpassword
+        DB_NAME: testdb
+      run: go test -v -tags=integration ./...
