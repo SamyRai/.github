@@ -16,6 +16,10 @@ permissions:
   packages: write
   id-token: write
 
+concurrency:
+  group: ${{ gitea.workflow }}-${{ gitea.head_ref || gitea.ref }}
+  cancel-in-progress: true
+
 jobs:
   release:
     runs-on: ubuntu-latest
