@@ -11,11 +11,25 @@ on:
         required: false
         type: string
         default: 'linux/amd64,linux/arm64'
+      build-network:
+        description: 'Docker build network mode'
+        required: false
+        type: string
+        default: 'default'
+      build-allow:
+        description: 'Extra BuildKit entitlements'
+        required: false
+        type: string
+        default: ''
     secrets:
       REGISTRY_USERNAME:
         required: true
       REGISTRY_PASSWORD:
         required: true
+      DOCKERHUB_USERNAME:
+        required: false
+      DOCKERHUB_TOKEN:
+        required: false
 
 permissions:
   contents: read
@@ -30,6 +44,14 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+
+      - name: Login to Docker Hub
+        if: ${{ secrets.DOCKERHUB_USERNAME != '' && secrets.DOCKERHUB_TOKEN != '' }}
+        uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3
+        with:
+          registry: docker.io
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
 
       - name: Set up QEMU
         uses: docker/setup-qemu-action@c7c53464625b32c7a7e944ae62b3e17d2b600130 # v3
@@ -50,4 +72,6 @@ jobs:
           context: .
           push: true
           platforms: ${{ inputs.platforms }}
+          network: ${{ inputs.build-network }}
+          allow: ${{ inputs.build-allow }}
           tags: registry.bk.glpx.pro/${{ inputs.image-name }}:latest
