@@ -2,8 +2,8 @@ module.exports = {
   platform: "gitea",
   endpoint: "https://gitea.bk.glpx.pro/api/v1",
 
-  // Do not bake tokens into config, use env var
-  token: process.env.RENOVATE_TOKEN,
+  // If token is missing, Renovate will fall back to using process.env.RENOVATE_TOKEN automatically
+  ...(process.env.RENOVATE_TOKEN && { token: process.env.RENOVATE_TOKEN }),
 
   extends: ["config:recommended", ":configMigration"],
 
@@ -31,14 +31,16 @@ module.exports = {
   reviewersFromCodeOwners: true,
 
   repositoryCache: "enabled",
-  redisUrl: process.env.RENOVATE_REDIS_URL,
+
+  // Conditionally add redisUrl only if the environment variable is set
+  ...(process.env.RENOVATE_REDIS_URL && { redisUrl: process.env.RENOVATE_REDIS_URL }),
 
   hostRules: [
     {
       matchHost: "registry.bk.glpx.pro",
       hostType: "docker",
-      username: process.env.HARBOR_USERNAME,
-      password: process.env.HARBOR_PASSWORD,
+      ...(process.env.HARBOR_USERNAME && { username: process.env.HARBOR_USERNAME }),
+      ...(process.env.HARBOR_PASSWORD && { password: process.env.HARBOR_PASSWORD }),
       abortOnError: true,
       concurrentRequestLimit: 4,
     },
