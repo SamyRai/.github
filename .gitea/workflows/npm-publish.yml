@@ -1,0 +1,74 @@
+name: Reusable NPM Publish
+on:
+  workflow_call:
+    inputs:
+      node-version:
+        description: 'Node.js version to use'
+        required: false
+        type: string
+        default: '24'
+      registry-url:
+        description: 'NPM Registry URL'
+        required: false
+        type: string
+        default: 'https://gitea.glpx.pro/api/packages/glpx/npm/'
+      scope:
+        description: 'NPM Package Scope (e.g. @glpx)'
+        required: false
+        type: string
+        default: '@glpx'
+      package-manager:
+        description: 'Package manager to use (npm, yarn, bun)'
+        required: false
+        type: string
+        default: 'npm'
+    secrets:
+      NPM_TOKEN:
+        required: true
+
+concurrency:
+  group: ${{ gitea.workflow }}-${{ gitea.head_ref || gitea.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: ${{ inputs.node-version }}
+          registry-url: ${{ inputs.registry-url }}
+          scope: ${{ inputs.scope }}
+
+      - name: Install dependencies (npm)
+        if: ${{ inputs.package-manager == 'npm' }}
+        run: npm ci || npm install
+
+      - name: Install dependencies (yarn)
+        if: ${{ inputs.package-manager == 'yarn' }}
+        run: npm install -g corepack && corepack enable && yarn install --immutable || yarn install
+
+      - name: Install dependencies (bun)
+        if: ${{ inputs.package-manager == 'bun' }}
+        run: npm install -g bun && bun install --frozen-lockfile || bun install
+
+      - name: Run build (if script exists)
+        run: |
+          if [ -f "package.json" ]; then
+            if grep -q '"build":' package.json; then
+              ${{ inputs.package-manager }} run build
+            fi
+          fi
+
+      - name: Publish package
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: ${{ inputs.package-manager }} publish

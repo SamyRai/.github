@@ -1,0 +1,66 @@
+name: Reusable Deno Compile
+on:
+  workflow_call:
+    inputs:
+      deno-version:
+        description: 'Deno version to use'
+        required: false
+        type: string
+        default: 'v2.x'
+      entrypoint:
+        description: 'Entrypoint file for compilation (e.g. main.ts)'
+        required: true
+        type: string
+      binary-name:
+        description: 'Name of the output binary'
+        required: true
+        type: string
+      permissions:
+        description: 'Deno permissions (e.g. --allow-all)'
+        required: false
+        type: string
+        default: '--allow-all'
+
+concurrency:
+  group: ${{ gitea.workflow }}-${{ gitea.head_ref || gitea.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: write
+
+jobs:
+  compile:
+    strategy:
+      matrix:
+        target:
+          - x86_64-unknown-linux-gnu
+          - aarch64-unknown-linux-gnu
+          - x86_64-apple-darwin
+          - aarch64-apple-darwin
+          - x86_64-pc-windows-msvc
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Setup Deno
+        uses: denoland/setup-deno@v2
+        with:
+          deno-version: ${{ inputs.deno-version }}
+
+      - name: Install dependencies
+        run: deno install
+
+      - name: Compile
+        run: |
+          OUTPUT_NAME="${{ inputs.binary-name }}-${{ matrix.target }}"
+          if [[ "${{ matrix.target }}" == *"windows"* ]]; then
+            OUTPUT_NAME="${OUTPUT_NAME}.exe"
+          fi
+          deno compile ${{ inputs.permissions }} --target ${{ matrix.target }} --output $OUTPUT_NAME ${{ inputs.entrypoint }}
+
+      - name: Upload Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ inputs.binary-name }}-${{ matrix.target }}
+          path: ${{ inputs.binary-name }}-*

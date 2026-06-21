@@ -9,7 +9,7 @@ on:
         default: '["3.13"]'
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
+  group: ${{ gitea.workflow }}-${{ gitea.head_ref || gitea.ref }}
   cancel-in-progress: true
 
 permissions:
@@ -23,7 +23,7 @@ jobs:
         python-version: ${{ fromJSON(inputs.python-versions) }}
     steps:
       - name: Checkout code
-        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        uses: actions/checkout@v6
 
       - name: Install uv
         uses: astral-sh/setup-uv@v3
@@ -31,7 +31,7 @@ jobs:
           enable-cache: true
 
       - name: Set up Python
-        uses: actions/setup-python@caf0cab7a618c569241d31dcd442f54681755d39 # v5
+        uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python-version }}
 
@@ -39,17 +39,7 @@ jobs:
         run: uv sync --all-extras --dev
 
       - name: Run linter
-        run: |
-          if uv run ruff check .; then
-            echo "Ruff passed"
-          else
-            echo "Ruff failed, but continuing..."
-          fi
+        run: uv run ruff check .
 
       - name: Run tests
-        run: |
-          if uv run pytest; then
-            echo "Pytest passed"
-          else
-            echo "No pytest found or tests failed"
-          fi
+        run: uv run pytest

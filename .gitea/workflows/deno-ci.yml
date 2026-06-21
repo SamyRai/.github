@@ -1,0 +1,53 @@
+name: Reusable Deno CI
+on:
+  workflow_call:
+    inputs:
+      deno-version:
+        description: 'Deno version to use'
+        required: false
+        type: string
+        default: 'v2.x'
+    secrets:
+      NPM_TOKEN:
+        required: false
+        description: 'Token for private npm registry (if using npm: specifiers)'
+
+concurrency:
+  group: ${{ gitea.workflow }}-${{ gitea.head_ref || gitea.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Setup Deno
+        uses: denoland/setup-deno@v2
+        with:
+          deno-version: ${{ inputs.deno-version }}
+
+      - name: Setup .npmrc (if using private registry)
+        if: ${{ secrets.NPM_TOKEN != '' }}
+        run: |
+          echo "//gitea.glpx.pro/api/packages/glpx/npm/:_authToken=${{ secrets.NPM_TOKEN }}" > .npmrc
+          echo "@glpx:registry=https://gitea.glpx.pro/api/packages/glpx/npm/" >> .npmrc
+
+      - name: Install dependencies
+        run: deno install
+
+      - name: Run format check
+        run: deno fmt --check
+
+      - name: Run linter
+        run: deno lint
+
+      - name: Run type check
+        run: deno check **/*.ts
+
+      - name: Run tests
+        run: deno test --allow-all

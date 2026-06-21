@@ -9,7 +9,7 @@ on:
         default: 'latest'
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
+  group: ${{ gitea.workflow }}-${{ gitea.head_ref || gitea.ref }}
   cancel-in-progress: true
 
 permissions:
@@ -20,7 +20,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - name: Checkout code
-      uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+      uses: actions/checkout@v6
 
     - name: Setup Bun
       uses: oven-sh/setup-bun@v2
@@ -32,11 +32,9 @@ jobs:
 
     - name: Run linter
       run: bun run lint
-      continue-on-error: true
 
     - name: Run type check
       run: bun run typecheck
-      continue-on-error: true
 
     - name: Run tests
       run: bun test
