@@ -1,0 +1,30 @@
+name: Renovate Global Bot
+on:
+  schedule:
+    - cron: "0 * * * *"
+  push:
+    branches:
+      - main
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  renovate:
+    runs-on: ubuntu-latest
+    container:
+      image: ghcr.io/renovatebot/renovate:latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Run Renovate
+        run: renovate
+        env:
+          RENOVATE_PLATFORM: gitea
+          RENOVATE_ENDPOINT: https://gitea.bk.glpx.pro/api/v1
+          RENOVATE_TOKEN: ${{ secrets.RENOVATE_TOKEN }}
+          RENOVATE_GITHUB_COM_TOKEN: ${{ secrets.RENOVATE_GITHUB_COM_TOKEN }}
+          HARBOR_USERNAME: ${{ secrets.HARBOR_USERNAME }}
+          HARBOR_PASSWORD: ${{ secrets.HARBOR_PASSWORD }}
+          RENOVATE_CONFIG_FILE: config.js
+          RENOVATE_AUTODISCOVER: "true"
+          LOG_LEVEL: debug
