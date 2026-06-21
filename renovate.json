@@ -2,16 +2,25 @@
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
   "extends": [
     "config:recommended",
-    "docker:enableMajor"
+    "docker:enableMajor",
+    ":semanticCommits",
+    ":dependencyDashboard",
+    "workarounds:all",
+    ":ignoreModulesAndTests"
   ],
   "labels": ["dependencies"],
   "assignees": ["mukimovd"],
+  "minimumReleaseAge": "3 days",
+  "vulnerabilityAlerts": {
+    "labels": ["security"],
+    "automerge": true,
+    "assignees": ["mukimovd"]
+  },
   "packageRules": [
     {
-      "matchDatasources": ["go"],
       "matchUpdateTypes": ["minor", "patch"],
       "automerge": true,
-      "groupName": "all non-major go dependencies"
+      "groupName": "all non-major dependencies"
     },
     {
       "matchDepNames": ["python"],
