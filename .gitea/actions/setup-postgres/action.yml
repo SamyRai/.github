@@ -1,0 +1,58 @@
+name: Setup PostgreSQL
+description: "Starts a PostgreSQL service container via docker"
+inputs:
+  username:
+    description: "Database user"
+    default: "postgres"
+  password:
+    description: "Database password"
+    default: "postgres"
+  database:
+    description: "Database name"
+    default: "postgres"
+  port:
+    description: "Database port"
+    default: "5432"
+  image:
+    description: "Docker image to use for PostgreSQL"
+    default: "registry.bk.glpx.pro/glpx/cnpg-geo-ai:17"
+runs:
+  using: "composite"
+  steps:
+    - name: Start PostgreSQL via Docker
+      shell: bash
+      run: |
+        echo "Starting PostgreSQL from ${{ inputs.image }}..."
+
+        if [ -n "$ACT" ] || [ -d "/root/.cache/act" ]; then
+          echo "⚠ Detected 'act' local runner environment, skipping Docker run"
+          echo "SKIP_POSTGRESQL=true" >> $GITHUB_ENV
+          exit 0
+        fi
+
+        # We assume the runner is authenticated to registry.bk.glpx.pro or can pull anonymously
+        docker run -d \
+          --name postgres-service \
+          -e POSTGRES_USER="${{ inputs.username }}" \
+          -e POSTGRES_PASSWORD="${{ inputs.password }}" \
+          -e POSTGRES_DB="${{ inputs.database }}" \
+          -p "${{ inputs.port }}:5432" \
+          ${{ inputs.image }}
+
+        echo "Waiting for PostgreSQL to be ready..."
+        for i in {1..30}; do
+          # CloudNativePG images usually have pg_isready installed
+          if docker exec postgres-service pg_isready -U "${{ inputs.username }}" >/dev/null 2>&1; then
+            echo "✓ PostgreSQL is ready!"
+
+            # Enable PostGIS extension just in case it is not enabled by default in the DB
+            docker exec postgres-service psql -U "${{ inputs.username }}" -d "${{ inputs.database }}" -c "CREATE EXTENSION IF NOT EXISTS postgis;" 2>/dev/null || true
+            exit 0
+          fi
+          echo "Waiting for PostgreSQL... (attempt $i/30)"
+          sleep 2
+        done
+
+        echo "✗ PostgreSQL failed to start"
+        docker logs postgres-service
+        exit 1
