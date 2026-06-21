@@ -3,29 +3,178 @@
   "extends": [
     "config:recommended",
     "docker:enableMajor",
+    "helpers:pinGitHubActionDigests",
+    ":combinePatchMinorReleases",
     ":semanticCommits",
+    ":separateMultipleMajorReleases",
     ":dependencyDashboard",
     "workarounds:all",
     ":ignoreModulesAndTests"
   ],
-  "labels": ["dependencies"],
-  "assignees": ["mukimovd"],
-  "minimumReleaseAge": "7 days",
+  "labels": [
+    "dependencies",
+    "renovate"
+  ],
+  "assignees": [
+    "mukimovd"
+  ],
+  "semanticCommits": "enabled",
+  "reviewersFromCodeOwners": true,
+  "osvVulnerabilityAlerts": true,
   "vulnerabilityAlerts": {
-    "labels": ["security"],
+    "labels": [
+      "security"
+    ],
     "automerge": true,
-    "assignees": ["mukimovd"]
+    "assignees": [
+      "mukimovd"
+    ]
+  },
+  "kubernetes": {
+    "fileMatch": [
+      "/(^|/)(k8s|kubernetes|manifests|deploy|deployments|clusters|apps)/.+\\.ya?ml$/"
+    ]
+  },
+  "helmv3": {
+    "fileMatch": [
+      "/(^|/)Chart\\.ya?ml$/"
+    ]
+  },
+  "helm-values": {
+    "fileMatch": [
+      "/(^|/)values\\.ya?ml$/",
+      "/(^|/)values[-.][^/]+\\.ya?ml$/"
+    ]
+  },
+  "lockFileMaintenance": {
+    "enabled": true,
+    "schedule": [
+      "* 2-6 * * 1"
+    ],
+    "automerge": false
   },
   "packageRules": [
     {
-      "matchUpdateTypes": ["minor", "patch"],
-      "automerge": true,
-      "groupName": "all non-major dependencies"
+      "description": "Delay public package updates for stability",
+      "matchDatasources": [
+        "npm",
+        "pypi",
+        "go",
+        "maven",
+        "nuget",
+        "rubygems",
+        "crate"
+      ],
+      "minimumReleaseAge": "7 days"
     },
     {
-      "matchDepNames": ["python"],
-      "matchManagers": ["github-actions"],
+      "description": "Automerge low-risk Go patch/minor updates",
+      "matchManagers": [
+        "gomod"
+      ],
+      "matchUpdateTypes": [
+        "patch",
+        "minor"
+      ],
+      "postUpdateOptions": [
+        "gomodTidy"
+      ],
+      "groupName": "go non-major dependencies",
+      "groupSlug": "go-non-major",
+      "automerge": true,
+      "automergeType": "pr",
+      "platformAutomerge": false,
+      "addLabels": [
+        "lang:go"
+      ]
+    },
+    {
+      "description": "Group Docker patch/minor updates",
+      "matchManagers": [
+        "dockerfile",
+        "docker-compose",
+        "helm-values",
+        "kubernetes"
+      ],
+      "matchDatasources": [
+        "docker"
+      ],
+      "matchUpdateTypes": [
+        "patch",
+        "minor",
+        "digest"
+      ],
+      "groupName": "container image updates",
+      "groupSlug": "container-images",
+      "automerge": false,
+      "addLabels": [
+        "stack:docker"
+      ]
+    },
+    {
+      "description": "Label Helm and Kubernetes updates",
+      "matchManagers": [
+        "helmv3",
+        "helm-values",
+        "kubernetes"
+      ],
+      "addLabels": [
+        "stack:kubernetes"
+      ]
+    },
+    {
+      "description": "Automerge GitHub/Gitea Actions patch/minor updates",
+      "matchManagers": [
+        "github-actions"
+      ],
+      "matchUpdateTypes": [
+        "patch",
+        "minor",
+        "digest"
+      ],
+      "groupName": "ci action updates",
+      "groupSlug": "ci-actions",
+      "automerge": true,
+      "automergeType": "pr",
+      "platformAutomerge": false,
+      "addLabels": [
+        "stack:ci"
+      ]
+    },
+    {
+      "description": "Require manual approval for major updates",
+      "matchUpdateTypes": [
+        "major"
+      ],
+      "dependencyDashboardApproval": true,
+      "automerge": false,
+      "addLabels": [
+        "major-update"
+      ]
+    },
+    {
+      "description": "Security PR labels and behavior for OSV/security-related updates",
+      "matchCategories": [
+        "security"
+      ],
+      "addLabels": [
+        "security",
+        "dependencies",
+        "renovate"
+      ],
+      "semanticCommitType": "fix",
+      "automerge": false
+    },
+    {
+      "description": "Python constraint for Github Actions",
+      "matchDepNames": [
+        "python"
+      ],
+      "matchManagers": [
+        "github-actions"
+      ],
       "allowedVersions": "<3.14"
     }
-  ]
+  ],
+  "customManagers": []
 }
