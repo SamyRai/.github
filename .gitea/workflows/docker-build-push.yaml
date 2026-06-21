@@ -2,6 +2,16 @@ name: Docker Build & Push
 
 on:
   workflow_call:
+    inputs:
+      image_name:
+        required: false
+        type: string
+        description: 'Optional override for the image name. Defaults to gitea.repository'
+      context:
+        required: false
+        type: string
+        default: '.'
+        description: 'Docker build context. Defaults to .'
     secrets:
       NPM_TOKEN:
         required: false
@@ -9,13 +19,13 @@ on:
 
 env:
   REGISTRY: registry.bk.glpx.pro
-  IMAGE_NAME: ${{ gitea.repository || github.repository }}
+  IMAGE_NAME: ${{ inputs.image_name || gitea.repository || github.repository }}
 
 permissions:
   contents: read
 
 concurrency:
-  group: ${{ gitea.workflow }}-${{ gitea.head_ref || gitea.ref }}
+  group: ${{ gitea.workflow }}-${{ gitea.head_ref || gitea.ref }}-${{ inputs.image_name || 'default' }}
   cancel-in-progress: true
 
 jobs:
@@ -47,7 +57,7 @@ jobs:
       - name: Build and push Docker image
         uses: docker/build-push-action@v7
         with:
-          context: .
+          context: ${{ inputs.context }}
           push: true
           platforms: linux/amd64,linux/arm64
           labels: ${{ steps.meta.outputs.labels }}

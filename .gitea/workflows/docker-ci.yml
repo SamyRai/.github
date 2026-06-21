@@ -30,6 +30,9 @@ on:
         required: false
       DOCKERHUB_TOKEN:
         required: false
+      NPM_TOKEN:
+        required: false
+        description: 'Private @glpx Gitea npm token, forwarded as a BuildKit secret (id=glpx_npm_token) for Dockerfiles that run `deno install`/`npm install` at build time.'
 
 permissions:
   contents: read
@@ -75,3 +78,7 @@ jobs:
           network: ${{ inputs.build-network }}
           allow: ${{ inputs.build-allow }}
           tags: registry.bk.glpx.pro/${{ inputs.image-name }}:latest
+          # Forwarded only when the caller passes NPM_TOKEN; consumed by Dockerfiles
+          # via `RUN --mount=type=secret,id=glpx_npm_token`. Empty otherwise (no-op).
+          secrets: |
+            glpx_npm_token=${{ secrets.NPM_TOKEN }}
