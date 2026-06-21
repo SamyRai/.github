@@ -12,6 +12,11 @@
       "matchUpdateTypes": ["minor", "patch"],
       "automerge": true,
       "groupName": "all non-major go dependencies"
+    },
+    {
+      "matchDepNames": ["python"],
+      "matchManagers": ["github-actions"],
+      "allowedVersions": "<3.14"
     }
   ]
 }

@@ -6,12 +6,12 @@ on:
         description: 'Hugo version to use'
         required: false
         type: string
-        default: '0.139.4'
+        default: '0.163.3'
       node-version:
         description: 'Node version for dependencies'
         required: false
         type: string
-        default: '20'
+        default: '26'
 
 permissions:
   contents: read

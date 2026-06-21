@@ -6,7 +6,7 @@ on:
         description: 'Node.js version to use'
         required: false
         type: string
-        default: '24'
+        default: '26'
 
 concurrency:
   group: ${{ gitea.workflow }}-${{ gitea.head_ref || gitea.ref }}

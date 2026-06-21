@@ -22,6 +22,10 @@ jobs:
       binary-name: 'my-app'
 ```
 
+## Python Version Restrictions
+
+**Note on Python:** Python is intentionally restricted to `3.13` and must not be bumped to `3.14+`. This is enforced in the root `renovate.json` configuration via `allowedVersions: "<3.14"` to prevent automated dependency updates from upgrading the Python version constraint across workflows.
+
 ## Secrets Strategy
 
 To keep workflows trivial and sidestep `ServiceAccount`-in-job complications, we avoid complex automated secret synchronizers or DinD runners with Vault mounting.
