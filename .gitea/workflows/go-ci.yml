@@ -42,7 +42,18 @@ jobs:
       run: go mod download
 
     - name: Run tests
-      run: go test -v -race -coverprofile=coverage.out -covermode=atomic ./...
+      # The race detector (ThreadSanitizer) aborts on the cluster's arm64 RPi
+      # runners with "unsupported VMA range" (39-bit VA kernel, TSan wants 48).
+      # `runs-on: amd64` targets amd64, but runner-label overlap can still land
+      # a job on arm64, so gate -race on the actual arch: full race coverage on
+      # amd64, plain tests (no false failure) anywhere else.
+      run: |
+        if [ "$(go env GOARCH)" = "amd64" ]; then
+          go test -v -race -coverprofile=coverage.out -covermode=atomic ./...
+        else
+          echo "::warning::$(go env GOARCH) runner: running tests without -race (ThreadSanitizer unsupported)"
+          go test -v -coverprofile=coverage.out -covermode=atomic ./...
+        fi
 
     - name: Run go vet
       run: go vet ./...
