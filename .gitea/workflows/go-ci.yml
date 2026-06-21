@@ -17,7 +17,11 @@ permissions:
 
 jobs:
   test:
-    runs-on: ubuntu-latest
+    # Must be amd64: this job runs `go test -race`, and the Go race detector
+    # (ThreadSanitizer) aborts on the cluster's arm64 RPi runners with
+    # "ThreadSanitizer: unsupported VMA range" (39-bit VA kernel, TSan wants 48).
+    # `ubuntu-latest` is advertised by both amd64 and arm64 runners; pin amd64.
+    runs-on: amd64
     steps:
     - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
 
