@@ -10,6 +10,7 @@
   ],
   "labels": ["dependencies"],
   "assignees": ["mukimovd"],
+  "minimumReleaseAge": "7 days",
   "vulnerabilityAlerts": {
     "labels": ["security"],
     "automerge": true,
