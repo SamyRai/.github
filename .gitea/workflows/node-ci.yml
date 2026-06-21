@@ -7,6 +7,10 @@ on:
         required: false
         type: string
         default: '26'
+    secrets:
+      NPM_TOKEN:
+        required: false
+        description: 'Token for private npm registry (if using @glpx scoped packages)'
 
 concurrency:
   group: ${{ gitea.workflow }}-${{ gitea.head_ref || gitea.ref }}
@@ -34,6 +38,12 @@ jobs:
         key: ${{ runner.os }}-yarn-${{ hashFiles('**/yarn.lock') }}
         restore-keys: |
           ${{ runner.os }}-yarn-
+
+    - name: Setup .npmrc (if using private registry)
+      if: ${{ secrets.NPM_TOKEN != '' }}
+      run: |
+        echo "//gitea.bk.glpx.pro/api/packages/glpx/npm/:_authToken=${{ secrets.NPM_TOKEN }}" > .npmrc
+        echo "@glpx:registry=https://gitea.bk.glpx.pro/api/packages/glpx/npm/" >> .npmrc
 
     - name: Install dependencies
       run: npm install -g corepack && corepack enable && yarn install --immutable || npm install
