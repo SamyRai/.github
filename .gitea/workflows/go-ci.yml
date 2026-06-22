@@ -15,6 +15,9 @@ concurrency:
 permissions:
   contents: read
 
+env:
+  GOTOOLCHAIN: local
+
 jobs:
   test:
     # Must be amd64: this job runs `go test -race`, and the Go race detector
