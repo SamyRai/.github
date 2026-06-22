@@ -26,7 +26,7 @@ jobs:
     # `ubuntu-latest` is advertised by both amd64 and arm64 runners; pin amd64.
     runs-on: amd64
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v7
 
     - name: Set up Go
       uses: actions/setup-go@v6

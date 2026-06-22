@@ -15,7 +15,7 @@ jobs:
       image: ghcr.io/renovatebot/renovate:latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
       - name: Run Renovate
         run: renovate
         env:
