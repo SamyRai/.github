@@ -1,0 +1,19 @@
+# TEMPORARY — validates Fix B (container.network=gitea-act). Delete after the run is green.
+# Exercises a Docker container action, which act runs with --network container:<job>;
+# pre-Fix-B this fails at container create with
+# "conflicting options: custom host-to-IP mapping and the network mode".
+name: fixb-validate
+on:
+  push:
+    branches: [main]
+    paths:
+      - ".gitea/workflows/_fixb-validate.yml"
+jobs:
+  docker-action:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Docker container action
+        uses: docker://alpine:3.20
+        with:
+          entrypoint: /bin/echo
+          args: "fix-b OK: docker action started without network conflict"
