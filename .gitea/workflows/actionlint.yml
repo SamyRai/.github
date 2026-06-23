@@ -16,5 +16,18 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
+      # reviewdog/action-actionlint is a Docker action. On this Gitea act_runner,
+      # Docker actions run with `--network container:<job>` while the runner injects
+      # `--add-host=host.docker.internal:host-gateway` (baikonur/gitea values
+      # `container.options`), which Docker rejects: "conflicting options: custom
+      # host-to-IP mapping and the network mode". Run actionlint as a binary inside
+      # the job container to sidestep that. Note: actionlint defaults to scanning
+      # .github/workflows, so point it at .gitea/workflows explicitly.
       - name: Run actionlint
-        uses: reviewdog/action-actionlint@v1
+        run: |
+          set -euo pipefail
+          curl -sSfL -o /tmp/dl-actionlint.bash \
+            https://raw.githubusercontent.com/rhysd/actionlint/main/scripts/download-actionlint.bash
+          bash /tmp/dl-actionlint.bash
+          find .gitea/workflows -type f \( -name '*.yml' -o -name '*.yaml' \) -print0 \
+            | xargs -0 ./actionlint -color
