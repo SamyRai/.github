@@ -8,8 +8,11 @@ module.exports = {
   extends: ["config:recommended", ":configMigration"],
 
   autodiscover: true,
-  // Restrict autodiscover to the actual namespace to avoid touching unrelated repos
-  autodiscoverNamespaces: ["mukimovd", "glpx"],
+  // Restrict autodiscover to our own repos. NOTE: autodiscoverNamespaces resolves
+  // each entry via Gitea's ORG endpoint (/api/v1/orgs/{name}/repos), which 404s on
+  // personal users like `mukimovd` ("GetOrgByName: user redirect does not exist").
+  // autodiscoverFilter uses /api/v1/repos/search and works for users AND orgs.
+  autodiscoverFilter: ["mukimovd/*", "glpx/*"],
 
   onboarding: false,
   requireConfig: "optional",
@@ -43,6 +46,13 @@ module.exports = {
       ...(process.env.HARBOR_PASSWORD && { password: process.env.HARBOR_PASSWORD }),
       abortOnError: true,
       concurrentRequestLimit: 4,
+    },
+    {
+      // Auth for the private @glpx npm registry so Renovate can look up
+      // @glpx/* package updates (e.g. @glpx/ui-kit).
+      matchHost: "gitea.bk.glpx.pro",
+      hostType: "npm",
+      ...(process.env.RENOVATE_TOKEN && { token: process.env.RENOVATE_TOKEN }),
     },
   ],
 
