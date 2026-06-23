@@ -21,10 +21,11 @@ env:
 jobs:
   test:
     # Must be amd64: this job runs `go test -race`, and the Go race detector
-    # (ThreadSanitizer) aborts on the cluster's arm64 RPi runners with
-    # "ThreadSanitizer: unsupported VMA range" (39-bit VA kernel, TSan wants 48).
-    # `ubuntu-latest` is advertised by both amd64 and arm64 runners; pin amd64.
-    runs-on: amd64
+    # amd64 is the default platform fleet-wide; the arm64 RPi runners advertise ONLY
+    # `arm64`/`rpi` (see ansible/vostok-runner.yml), so `ubuntu-latest` is guaranteed amd64.
+    # The GOARCH gate on `-race` below is kept as defence-in-depth (TSan needs a 48-bit VA,
+    # which the RPi 39-bit kernel lacks) for the rare explicit `runs-on: arm64` Go job.
+    runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v7
 
@@ -34,7 +35,7 @@ jobs:
         go-version: ${{ inputs.go-version }}
 
     - name: Cache Go modules
-      uses: actions/cache@v4
+      uses: actions/cache@v5
       with:
         path: ~/go/pkg/mod
         key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}

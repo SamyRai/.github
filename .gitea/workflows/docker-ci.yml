@@ -7,10 +7,10 @@ on:
         required: true
         type: string
       platforms:
-        description: 'Platforms to build for'
+        description: 'Platforms to build for. Default amd64-only (matches the amd64 cluster); pass linux/amd64,linux/arm64 explicitly to opt into multi-arch.'
         required: false
         type: string
-        default: 'linux/amd64,linux/arm64'
+        default: 'linux/amd64'
       build-network:
         description: 'Docker build network mode'
         required: false
