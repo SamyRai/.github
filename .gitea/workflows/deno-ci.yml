@@ -7,6 +7,11 @@ on:
         required: false
         type: string
         default: 'v2.x'
+      working-directory:
+        description: 'Directory containing deno.json (defaults to repo root)'
+        required: false
+        type: string
+        default: '.'
     secrets:
       NPM_TOKEN:
         required: false
@@ -22,6 +27,9 @@ permissions:
 jobs:
   test:
     runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ${{ inputs.working-directory }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v7
@@ -38,7 +46,7 @@ jobs:
           echo "@glpx:registry=https://gitea.bk.glpx.pro/api/packages/glpx/npm/" >> .npmrc
 
       - name: Install dependencies
-        run: deno install
+        run: deno ci
 
       - name: Run format check
         run: deno fmt --check
@@ -47,7 +55,7 @@ jobs:
         run: deno lint
 
       - name: Run type check
-        run: deno check **/*.ts
+        run: deno task check
 
       - name: Run tests
-        run: deno test --allow-all
+        run: deno task test
