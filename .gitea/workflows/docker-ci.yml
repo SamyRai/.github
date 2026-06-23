@@ -21,6 +21,11 @@ on:
         required: false
         type: string
         default: ''
+      context:
+        description: 'Docker build context (defaults to repo root).'
+        required: false
+        type: string
+        default: '.'
     secrets:
       REGISTRY_USERNAME:
         required: true
@@ -72,12 +77,18 @@ jobs:
       - name: Build and push
         uses: docker/build-push-action@v6
         with:
-          context: .
+          context: ${{ inputs.context }}
           push: true
           platforms: ${{ inputs.platforms }}
           network: ${{ inputs.build-network }}
           allow: ${{ inputs.build-allow }}
-          tags: registry.bk.glpx.pro/${{ inputs.image-name }}:latest
+          # `:latest` (rolling) + `:<sha>` (immutable — lets ArgoCD/rollbacks pin a digest).
+          tags: |
+            registry.bk.glpx.pro/${{ inputs.image-name }}:latest
+            registry.bk.glpx.pro/${{ inputs.image-name }}:${{ gitea.sha }}
+          # Registry-backed layer cache: shared across runners, big speedup on rebuilds.
+          cache-from: type=registry,ref=registry.bk.glpx.pro/${{ inputs.image-name }}:buildcache
+          cache-to: type=registry,ref=registry.bk.glpx.pro/${{ inputs.image-name }}:buildcache,mode=max
           # Forwarded only when the caller passes NPM_TOKEN; consumed by Dockerfiles
           # via `RUN --mount=type=secret,id=glpx_npm_token`. Empty otherwise (no-op).
           secrets: |

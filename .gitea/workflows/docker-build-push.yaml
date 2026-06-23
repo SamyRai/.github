@@ -1,4 +1,10 @@
-name: Docker Build & Push
+# DEPRECATED — use `docker-ci.yml` instead (the canonical Docker build/push lane).
+# docker-ci.yml is feature-complete (`:latest` + `:<sha>` tags, registry buildcache,
+# multi-arch, optional Docker Hub login + glpx npm build secret) and is what the fleet
+# consumes (go-agent, meta_graph_sdk, just_storage, pkg, aluma-core). This workflow
+# (secrets HARBOR_USERNAME/HARBOR_PASSWORD, input image_name) has no known consumers and
+# is kept only so any out-of-tree caller doesn't break; do not wire new repos to it.
+name: Docker Build & Push (DEPRECATED — use docker-ci.yml)
 
 on:
   workflow_call:
