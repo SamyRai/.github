@@ -1,6 +1,17 @@
 name: Reusable Rust CI
 on:
   workflow_call:
+    inputs:
+      toolchain:
+        description: 'Rust toolchain: stable, beta, nightly, or a pinned version (e.g. 1.83.0).'
+        type: string
+        required: false
+        default: 'stable'
+      working-directory:
+        description: 'Directory containing Cargo.toml / the workspace (defaults to repo root).'
+        type: string
+        required: false
+        default: '.'
 
 concurrency:
   group: ${{ gitea.workflow }}-${{ gitea.head_ref || gitea.ref }}
@@ -12,23 +23,31 @@ permissions:
 jobs:
   test:
     runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ${{ inputs.working-directory }}
     steps:
     - name: Checkout code
       uses: actions/checkout@v7
 
     - name: Install Rust
-      uses: dtolnay/rust-toolchain@stable
+      uses: dtolnay/rust-toolchain@master
       with:
+        toolchain: ${{ inputs.toolchain }}
         components: rustfmt, clippy
 
     - name: Cache dependencies
       uses: Swatinem/rust-cache@v2
+      with:
+        workspaces: ${{ inputs.working-directory }}
 
-    - name: Check formatting
-      run: cargo fmt -- --check
+    - name: Check formatting (all workspace members)
+      run: cargo fmt --all -- --check
 
-    - name: Run clippy
-      run: cargo clippy -- -D warnings
+    - name: Run clippy (all targets incl. tests/examples)
+      run: cargo clippy --workspace --all-targets -- -D warnings
 
     - name: Run tests
+      # Integration tests may self-provision deps via testcontainers; the runner's DinD
+      # sidecar supplies the Docker daemon they need (no extra setup here).
       run: cargo test --workspace
