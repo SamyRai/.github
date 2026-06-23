@@ -34,8 +34,8 @@ jobs:
           #  - 'gitea' context: the Gitea-recommended form; github.* is just an alias.
           #  - secrets-in-if: Gitea does not enforce GitHub's context-availability rules.
           #  - SC2015: intentional `A && B || C` install fallbacks.
-          #  - SC2193: false positive — actionlint substitutes ${{ matrix.target }}
-          #    with a placeholder, so shellcheck wrongly sees a constant comparison.
+          #  - SC2193: false positive — actionlint replaces matrix expressions with a
+          #    fixed placeholder, so shellcheck wrongly sees a constant comparison.
           find .gitea/workflows -type f \( -name '*.yml' -o -name '*.yaml' \) -print0 \
             | xargs -0 ./actionlint -color \
                 -ignore 'undefined variable "gitea"' \
