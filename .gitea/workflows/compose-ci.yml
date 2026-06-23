@@ -1,0 +1,84 @@
+name: Reusable Compose Integration CI
+
+# Brings up an app-owned docker compose stack — the SAME one used for local dev/e2e — on the
+# runner's Docker (the act_runner DinD sidecar), runs the integration/e2e suite against it,
+# then always tears it down. This keeps dev/CI parity and supports arbitrary multi-DB /
+# multi-broker dependency graphs that Gitea's native `services:` block can't express
+# (no command override, limited volumes/options).
+#
+# Two invocation models (pick one):
+#   A) app-in-compose  — a designated service's exit code IS the result. Pass `exit-from`.
+#        e.g. a `tester` container that publishes input and asserts output.
+#   B) deps-up + test  — bring dependencies up healthy, then run a command on the runner.
+#        Pass `test-command`; the compose stack defines only the deps (db, broker, ...).
+#
+# Callers reference: mukimovd/.github/.gitea/workflows/compose-ci.yml@main
+
+on:
+  workflow_call:
+    inputs:
+      compose-file:
+        description: 'CI-tuned compose file (e.g. docker-compose.ci.yml or stack/docker-compose.itest.yml).'
+        type: string
+        required: false
+        default: 'docker-compose.ci.yml'
+      exit-from:
+        description: 'Model A: service whose exit code is the test result (e.g. "tester"). Mutually exclusive with test-command.'
+        type: string
+        required: false
+        default: ''
+      test-command:
+        description: 'Model B: command run on the runner after `up -d --wait` (e.g. "deno task ci:backend:postgres"). Mutually exclusive with exit-from.'
+        type: string
+        required: false
+        default: ''
+    secrets:
+      REGISTRY_USERNAME:
+        required: false
+        description: 'Harbor robot user — enables pulling base/app images from the registry.bk.glpx.pro mirror.'
+      REGISTRY_PASSWORD:
+        required: false
+      NPM_TOKEN:
+        required: false
+        description: 'Private @glpx Gitea npm token; exported as GLPX_NPM_TOKEN for compose builds that need it.'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ gitea.workflow }}-${{ gitea.head_ref || gitea.ref }}
+  cancel-in-progress: true
+
+jobs:
+  integration:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      GLPX_NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Log in to Harbor (mirror pulls)
+        if: ${{ secrets.REGISTRY_USERNAME != '' && secrets.REGISTRY_PASSWORD != '' }}
+        uses: docker/login-action@v4
+        with:
+          registry: registry.bk.glpx.pro
+          username: ${{ secrets.REGISTRY_USERNAME }}
+          password: ${{ secrets.REGISTRY_PASSWORD }}
+
+      # Model A: the whole stack (including the app) runs in compose; `exit-from`'s exit code wins.
+      - name: Integration — app in compose
+        if: ${{ inputs.exit-from != '' }}
+        run: docker compose -f "${{ inputs.compose-file }}" up --build --abort-on-container-exit --exit-code-from "${{ inputs.exit-from }}"
+
+      # Model B: only the deps run in compose (`--wait` blocks on healthchecks); tests run on the runner.
+      - name: Integration — deps in compose, tests on runner
+        if: ${{ inputs.test-command != '' }}
+        run: |
+          docker compose -f "${{ inputs.compose-file }}" up -d --wait
+          ${{ inputs.test-command }}
+
+      - name: Teardown
+        if: always()
+        run: docker compose -f "${{ inputs.compose-file }}" down -v --remove-orphans
