@@ -26,6 +26,11 @@ on:
         required: false
         type: string
         default: '.'
+      dockerfile:
+        description: 'Path to the Dockerfile, relative to the build context. Lets monorepos keep the Dockerfile under a subdir (e.g. smm-dashboard/Dockerfile).'
+        required: false
+        type: string
+        default: 'Dockerfile'
     secrets:
       REGISTRY_USERNAME:
         required: true
@@ -38,6 +43,10 @@ on:
       NPM_TOKEN:
         required: false
         description: 'Private @glpx Gitea npm token, forwarded as a BuildKit secret (id=glpx_npm_token) for Dockerfiles that run `deno install`/`npm install` at build time.'
+    outputs:
+      image-tag:
+        description: 'Canonical immutable tag that was pushed: YYYYMMDDHHMMSS-<sha7>. Feed it into a GitOps values bump, or let Renovate pick it up.'
+        value: ${{ jobs.build-and-push.outputs.image-tag }}
 
 permissions:
   contents: read
@@ -49,6 +58,8 @@ concurrency:
 jobs:
   build-and-push:
     runs-on: ubuntu-latest
+    outputs:
+      image-tag: ${{ steps.meta.outputs.stamp }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v7
@@ -74,16 +85,30 @@ jobs:
           username: ${{ secrets.REGISTRY_USERNAME }}
           password: ${{ secrets.REGISTRY_PASSWORD }}
 
+      # Canonical platform-wide immutable tag: a sortable timestamp (so
+      # "newest == highest", which Renovate's regex versioning relies on) plus the
+      # short git sha for traceability. Keep this format in lockstep with the
+      # Renovate versioning regex `^(\d{4})(\d{4})(\d{6})(?:-[0-9a-f]{7,40})?$`.
+      # See docs/conventions/SHIP_PIPELINE.md in the cluster (helm) repo.
+      - name: Compute immutable tag
+        id: meta
+        run: echo "stamp=$(date +%Y%m%d%H%M%S)-$(echo "${{ gitea.sha }}" | cut -c1-7)" >> "$GITHUB_OUTPUT"
+
       - name: Build and push
         uses: docker/build-push-action@v6
         with:
           context: ${{ inputs.context }}
+          file: ${{ inputs.context }}/${{ inputs.dockerfile }}
           push: true
           platforms: ${{ inputs.platforms }}
           network: ${{ inputs.build-network }}
           allow: ${{ inputs.build-allow }}
-          # `:latest` (rolling) + `:<sha>` (immutable — lets ArgoCD/rollbacks pin a digest).
+          # `:<stamp>` is the immutable tag GitOps charts reference and Renovate
+          # auto-bumps. `:latest` stays as a rolling/cache convenience alias — do
+          # NOT reference it from a chart, it has no GitOps trail. `:<sha>` is kept
+          # for digest pinning / back-compat with older charts.
           tags: |
+            registry.bk.glpx.pro/${{ inputs.image-name }}:${{ steps.meta.outputs.stamp }}
             registry.bk.glpx.pro/${{ inputs.image-name }}:latest
             registry.bk.glpx.pro/${{ inputs.image-name }}:${{ gitea.sha }}
           # Registry-backed layer cache: shared across runners, big speedup on rebuilds.

@@ -174,7 +174,38 @@
         "github-actions"
       ],
       "allowedVersions": "<3.14"
+    },
+    {
+      "description": "Our own immutable, timestamp-tagged images (registry.bk.glpx.pro): auto-merge on green CI. Tag format YYYYMMDDHHMMSS[-<sha7>], emitted by the reusable docker-ci.yml. Newest timestamp wins; the sha suffix is matched but ignored for ordering. MUST stay last so it overrides the generic 'container image updates' group above.",
+      "matchDatasources": [
+        "docker"
+      ],
+      "matchPackageNames": [
+        "registry.bk.glpx.pro/**"
+      ],
+      "versioning": "regex:^(?<major>\\d{4})(?<minor>\\d{4})(?<patch>\\d{6})(?:-[0-9a-f]{7,40})?$",
+      "minimumReleaseAge": "0",
+      "groupName": null,
+      "automerge": true,
+      "automergeType": "pr",
+      "platformAutomerge": false,
+      "addLabels": [
+        "deploy:auto"
+      ]
     }
   ],
-  "customManagers": []
+  "customManagers": [
+    {
+      "description": "Detect registry.bk.glpx.pro images in Helm values at any nesting depth (a `repository:` line followed by a `tag:` line). Covers single- and multi-image charts the helm-values manager misses. Versioning + automerge come from the registry packageRule above (matched by package name).",
+      "customType": "regex",
+      "fileMatch": [
+        "/(^|/)values\\.ya?ml$/",
+        "/(^|/)values[-.][^/]+\\.ya?ml$/"
+      ],
+      "datasourceTemplate": "docker",
+      "matchStrings": [
+        "repository:\\s*[\"']?(?<depName>registry\\.bk\\.glpx\\.pro/[^\\s\"']+)[\"']?[\\s\\S]*?tag:\\s*[\"']?(?<currentValue>[^\\s\"']+)[\"']?"
+      ]
+    }
+  ]
 }
