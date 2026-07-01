@@ -31,19 +31,19 @@
     ]
   },
   "kubernetes": {
-    "fileMatch": [
-      "/(^|/)(k8s|kubernetes|manifests|deploy|deployments|clusters|apps)/.+\\.ya?ml$/"
+    "managerFilePatterns": [
+      "//(^|/)(k8s|kubernetes|manifests|deploy|deployments|clusters|apps)/.+\\.ya?ml$//"
     ]
   },
   "helmv3": {
-    "fileMatch": [
-      "/(^|/)Chart\\.ya?ml$/"
+    "managerFilePatterns": [
+      "//(^|/)Chart\\.ya?ml$//"
     ]
   },
   "helm-values": {
-    "fileMatch": [
-      "/(^|/)values\\.ya?ml$/",
-      "/(^|/)values[-.][^/]+\\.ya?ml$/"
+    "managerFilePatterns": [
+      "//(^|/)values\\.ya?ml$//",
+      "//(^|/)values[-.][^/]+\\.ya?ml$//"
     ]
   },
   "lockFileMaintenance": {
@@ -198,9 +198,9 @@
     {
       "description": "Detect registry.bk.glpx.pro images in Helm values at any nesting depth (a `repository:` line followed by a `tag:` line). Covers single- and multi-image charts the helm-values manager misses. Versioning + automerge come from the registry packageRule above (matched by package name).",
       "customType": "regex",
-      "fileMatch": [
-        "/(^|/)values\\.ya?ml$/",
-        "/(^|/)values[-.][^/]+\\.ya?ml$/"
+      "managerFilePatterns": [
+        "//(^|/)values\\.ya?ml$//",
+        "//(^|/)values[-.][^/]+\\.ya?ml$//"
       ],
       "datasourceTemplate": "docker",
       "matchStrings": [
