@@ -15,7 +15,7 @@ on:
     secrets:
       NPM_TOKEN:
         required: false
-        description: 'Token for private npm registry (if using npm: specifiers)'
+        description: 'Bare auth token for the private @glpx Gitea npm registry. Use the GLPX_NPM_TOKEN user-level secret (Vault: secret/baikonur/registry/npm-reader). Do NOT pass a full .npmrc file — the token is appended to $HOME/.npmrc so Deno picks it up regardless of working directory.'
 
 concurrency:
   group: ${{ gitea.workflow }}-${{ gitea.head_ref || gitea.ref }}
@@ -41,9 +41,13 @@ jobs:
 
       - name: Setup .npmrc (if using private registry)
         if: ${{ secrets.NPM_TOKEN != '' }}
+        # Write to $HOME/.npmrc (user-level) so Deno resolves auth regardless of
+        # working-directory. Append so existing entries (e.g. Docker Hub) are kept.
         run: |
-          echo "//gitea.bk.glpx.pro/api/packages/glpx/npm/:_authToken=${{ secrets.NPM_TOKEN }}" > .npmrc
-          echo "@glpx:registry=https://gitea.bk.glpx.pro/api/packages/glpx/npm/" >> .npmrc
+          printf '//gitea.bk.glpx.pro/api/packages/glpx/npm/:_authToken=%s\n' \
+            "${{ secrets.NPM_TOKEN }}" >> "$HOME/.npmrc"
+          printf '@glpx:registry=https://gitea.bk.glpx.pro/api/packages/glpx/npm/\n' \
+            >> "$HOME/.npmrc"
 
       - name: Install dependencies
         run: deno ci
