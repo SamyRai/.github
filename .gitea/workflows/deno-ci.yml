@@ -39,15 +39,11 @@ jobs:
         with:
           deno-version: ${{ inputs.deno-version }}
 
-      - name: Setup .npmrc (if using private registry)
+      - name: Setup @glpx npm auth
         if: ${{ secrets.NPM_TOKEN != '' }}
-        # Write to $HOME/.npmrc (user-level) so Deno resolves auth regardless of
-        # working-directory. Append so existing entries (e.g. Docker Hub) are kept.
-        run: |
-          printf '//gitea.bk.glpx.pro/api/packages/glpx/npm/:_authToken=%s\n' \
-            "${{ secrets.NPM_TOKEN }}" >> "$HOME/.npmrc"
-          printf '@glpx:registry=https://gitea.bk.glpx.pro/api/packages/glpx/npm/\n' \
-            >> "$HOME/.npmrc"
+        uses: mukimovd/.github/.gitea/actions/setup-glpx-npm@main
+        with:
+          token: ${{ secrets.NPM_TOKEN }}
 
       - name: Install dependencies
         run: deno ci
