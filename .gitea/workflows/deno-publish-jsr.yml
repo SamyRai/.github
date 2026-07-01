@@ -32,11 +32,11 @@ jobs:
         with:
           deno-version: ${{ inputs.deno-version }}
 
-      - name: Setup .npmrc (if using private registry)
+      - name: Setup @glpx npm auth
         if: ${{ secrets.NPM_TOKEN != '' }}
-        run: |
-          echo "//gitea.glpx.pro/api/packages/glpx/npm/:_authToken=${{ secrets.NPM_TOKEN }}" > .npmrc
-          echo "@glpx:registry=https://gitea.glpx.pro/api/packages/glpx/npm/" >> .npmrc
+        uses: mukimovd/.github/.gitea/actions/setup-glpx-npm@main
+        with:
+          token: ${{ secrets.NPM_TOKEN }}
 
       - name: Publish to JSR
         run: deno publish
