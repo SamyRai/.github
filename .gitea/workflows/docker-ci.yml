@@ -76,11 +76,10 @@ jobs:
           CHECKOUT_SHA: ${{ gitea.sha }}
         run: |
           set -euo pipefail
-          cd /tmp
-          rm -rf "$GITHUB_WORKSPACE"
           mkdir -p "$GITHUB_WORKSPACE"
-          git init "$GITHUB_WORKSPACE"
           cd "$GITHUB_WORKSPACE"
+          find . -mindepth 1 -maxdepth 1 -exec rm -rf -- {} +
+          git init .
           git remote add origin "http://gitea:3000/${CHECKOUT_REPOSITORY}.git"
           case "$CHECKOUT_REF" in
             refs/heads/*)
