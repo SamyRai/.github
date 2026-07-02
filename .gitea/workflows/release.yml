@@ -22,7 +22,7 @@ concurrency:
 
 jobs:
   release:
-    runs-on: ubuntu-latest
+    runs-on: generic
     steps:
     - uses: actions/checkout@v7
       with:

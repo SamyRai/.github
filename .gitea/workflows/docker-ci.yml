@@ -64,7 +64,7 @@ concurrency:
 
 jobs:
   build-and-push:
-    runs-on: ubuntu-latest
+    runs-on: generic
     outputs:
       image-tag: ${{ steps.meta.outputs.stamp }}
     steps:

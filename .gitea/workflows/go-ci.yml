@@ -21,11 +21,11 @@ env:
 jobs:
   test:
     # Must be amd64: this job runs `go test -race`, and the Go race detector
-    # amd64 is the default platform fleet-wide; the arm64 RPi runners advertise ONLY
-    # `arm64`/`rpi` (see ansible/vostok-runner.yml), so `ubuntu-latest` is guaranteed amd64.
+    # amd64 is the default platform fleet-wide; the Harbor-backed generic runner
+    # is the canonical label for reusable Gitea workflow_call jobs.
     # The GOARCH gate on `-race` below is kept as defence-in-depth (TSan needs a 48-bit VA,
     # which the RPi 39-bit kernel lacks) for the rare explicit `runs-on: arm64` Go job.
-    runs-on: ubuntu-latest
+    runs-on: generic
     steps:
     - uses: actions/checkout@v7
 
