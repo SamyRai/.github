@@ -21,6 +21,11 @@ on:
         required: false
         type: string
         default: ''
+      build-args:
+        description: 'Extra Docker build args. VERSION is always set to the immutable image tag.'
+        required: false
+        type: string
+        default: ''
       context:
         description: 'Docker build context (defaults to repo root).'
         required: false
@@ -103,6 +108,9 @@ jobs:
           platforms: ${{ inputs.platforms }}
           network: ${{ inputs.build-network }}
           allow: ${{ inputs.build-allow }}
+          build-args: |
+            VERSION=${{ steps.meta.outputs.stamp }}
+            ${{ inputs.build-args }}
           # `:<stamp>` is the immutable tag GitOps charts reference and Renovate
           # auto-bumps. `:latest` stays as a rolling/cache convenience alias — do
           # NOT reference it from a chart, it has no GitOps trail. `:<sha>` is kept

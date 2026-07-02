@@ -13,8 +13,8 @@ on:
 
 permissions:
   contents: write
+  releases: write
   packages: write
-  id-token: write
 
 concurrency:
   group: ${{ gitea.workflow }}-${{ gitea.head_ref || gitea.ref }}
@@ -33,11 +33,16 @@ jobs:
       with:
         go-version: ${{ inputs.go-version }}
 
+    - name: Install UPX
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y upx-ucl
+
     - name: Run GoReleaser
-      uses: goreleaser/goreleaser-action@v6
+      uses: goreleaser/goreleaser-action@v7
       with:
         distribution: goreleaser
-        version: latest
+        version: v2.16.0
         args: release --clean
       env:
         GITEA_TOKEN: ${{ secrets.GITEA_TOKEN }}
