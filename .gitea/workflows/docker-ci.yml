@@ -152,9 +152,13 @@ jobs:
           fi
 
           # `:<stamp>` is the immutable tag GitOps charts reference and Renovate
-          # auto-bumps. `:latest` stays as a rolling/cache convenience alias; do
-          # not reference it from a chart. `:<sha>` is kept for digest pinning and
-          # back-compat with older charts.
+          # auto-bumps. `:<sha>` is kept for digest pinning and back-compat.
+          # We deliberately do NOT push `:latest`: charts must never reference it
+          # (ArgoCD sees no diff, no rollback), and Harbor tag-immutability rules
+          # reject overwriting it with 412 Precondition Failed, which was failing
+          # the whole build. Cross-build caching uses the dedicated `:buildcache`
+          # tag, not `:latest`, so nothing is lost. Legacy charts still on
+          # `:latest` must migrate to the `:<stamp>` tag (see SHIP_PIPELINE.md).
           docker buildx build \
             --push \
             --platform "$PLATFORMS" \
@@ -164,7 +168,6 @@ jobs:
             "${secret_args[@]}" \
             --file "${BUILD_CONTEXT}/${BUILD_DOCKERFILE}" \
             --tag "registry.bk.glpx.pro/${IMAGE_NAME}:${IMAGE_TAG}" \
-            --tag "registry.bk.glpx.pro/${IMAGE_NAME}:latest" \
             --tag "registry.bk.glpx.pro/${IMAGE_NAME}:${SHA_TAG}" \
             --cache-from "type=registry,ref=registry.bk.glpx.pro/${IMAGE_NAME}:buildcache" \
             --cache-to "type=registry,ref=registry.bk.glpx.pro/${IMAGE_NAME}:buildcache,mode=max" \
