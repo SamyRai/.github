@@ -41,6 +41,8 @@ on:
         required: true
       REGISTRY_PASSWORD:
         required: true
+      GITEA_TOKEN:
+        required: true
       DOCKERHUB_USERNAME:
         required: false
       DOCKERHUB_TOKEN:
@@ -66,29 +68,45 @@ jobs:
     outputs:
       image-tag: ${{ steps.meta.outputs.stamp }}
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v7
+      - name: Checkout code from Gitea
+        env:
+          CHECKOUT_TOKEN: ${{ secrets.GITEA_TOKEN }}
+          CHECKOUT_REPOSITORY: ${{ gitea.repository }}
+          CHECKOUT_REF: ${{ gitea.ref }}
+          CHECKOUT_SHA: ${{ gitea.sha }}
+        run: |
+          set -euo pipefail
+          cd /tmp
+          rm -rf "$GITHUB_WORKSPACE"
+          mkdir -p "$GITHUB_WORKSPACE"
+          git init "$GITHUB_WORKSPACE"
+          cd "$GITHUB_WORKSPACE"
+          git remote add origin "http://gitea:3000/${CHECKOUT_REPOSITORY}.git"
+          case "$CHECKOUT_REF" in
+            refs/heads/*)
+              git -c http.extraheader="Authorization: token ${CHECKOUT_TOKEN}" fetch --depth=1 origin "+${CHECKOUT_REF}:refs/remotes/origin/${CHECKOUT_REF#refs/heads/}"
+              ;;
+            refs/tags/*)
+              git -c http.extraheader="Authorization: token ${CHECKOUT_TOKEN}" fetch --depth=1 origin "+${CHECKOUT_REF}:refs/tags/${CHECKOUT_REF#refs/tags/}"
+              ;;
+            *)
+              git -c http.extraheader="Authorization: token ${CHECKOUT_TOKEN}" fetch --depth=1 origin "${CHECKOUT_SHA}"
+              ;;
+          esac
+          git checkout --force "${CHECKOUT_SHA}"
 
       - name: Login to Docker Hub
         if: ${{ secrets.DOCKERHUB_USERNAME != '' && secrets.DOCKERHUB_TOKEN != '' }}
-        uses: docker/login-action@v4
-        with:
-          registry: docker.io
-          username: ${{ secrets.DOCKERHUB_USERNAME }}
-          password: ${{ secrets.DOCKERHUB_TOKEN }}
-
-      - name: Set up QEMU
-        uses: docker/setup-qemu-action@v4
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v4
+        env:
+          DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+          DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
+        run: echo "${DOCKERHUB_TOKEN}" | docker login docker.io --username "${DOCKERHUB_USERNAME}" --password-stdin
 
       - name: Login to Harbor
-        uses: docker/login-action@v4
-        with:
-          registry: registry.bk.glpx.pro
-          username: ${{ secrets.REGISTRY_USERNAME }}
-          password: ${{ secrets.REGISTRY_PASSWORD }}
+        env:
+          REGISTRY_USERNAME: ${{ secrets.REGISTRY_USERNAME }}
+          REGISTRY_PASSWORD: ${{ secrets.REGISTRY_PASSWORD }}
+        run: echo "${REGISTRY_PASSWORD}" | docker login registry.bk.glpx.pro --username "${REGISTRY_USERNAME}" --password-stdin
 
       # Canonical platform-wide immutable tag: a sortable timestamp (so
       # "newest == highest", which Renovate's regex versioning relies on) plus the
@@ -100,29 +118,55 @@ jobs:
         run: echo "stamp=$(date +%Y%m%d%H%M%S)-$(echo "${{ gitea.sha }}" | cut -c1-7)" >> "$GITHUB_OUTPUT"
 
       - name: Build and push
-        uses: docker/build-push-action@v6
-        with:
-          context: ${{ inputs.context }}
-          file: ${{ inputs.context }}/${{ inputs.dockerfile }}
-          push: true
-          platforms: ${{ inputs.platforms }}
-          network: ${{ inputs.build-network }}
-          allow: ${{ inputs.build-allow }}
-          build-args: |
-            VERSION=${{ steps.meta.outputs.stamp }}
-            ${{ inputs.build-args }}
+        env:
+          BUILD_CONTEXT: ${{ inputs.context }}
+          BUILD_DOCKERFILE: ${{ inputs.dockerfile }}
+          BUILD_NETWORK: ${{ inputs.build-network }}
+          BUILD_ALLOW: ${{ inputs.build-allow }}
+          BUILD_ARGS: ${{ inputs.build-args }}
+          IMAGE_NAME: ${{ inputs.image-name }}
+          IMAGE_TAG: ${{ steps.meta.outputs.stamp }}
+          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+          PLATFORMS: ${{ inputs.platforms }}
+          SHA_TAG: ${{ gitea.sha }}
+        run: |
+          set -euo pipefail
+          cd "$GITHUB_WORKSPACE"
+
+          builder="gitea-${GITHUB_RUN_ID:-manual}-${GITHUB_RUN_ATTEMPT:-0}"
+          docker buildx inspect "$builder" >/dev/null 2>&1 || docker buildx create --name "$builder" --use
+          docker buildx use "$builder"
+
+          build_args=(--build-arg "VERSION=${IMAGE_TAG}")
+          while IFS= read -r arg; do
+            [ -n "$arg" ] && build_args+=(--build-arg "$arg")
+          done <<< "$BUILD_ARGS"
+
+          allow_args=()
+          while IFS= read -r entitlement; do
+            [ -n "$entitlement" ] && allow_args+=(--allow "$entitlement")
+          done <<< "$BUILD_ALLOW"
+
+          secret_args=()
+          if [ -n "${NPM_TOKEN}" ]; then
+            secret_args+=(--secret id=glpx_npm_token,env=NPM_TOKEN)
+          fi
+
           # `:<stamp>` is the immutable tag GitOps charts reference and Renovate
-          # auto-bumps. `:latest` stays as a rolling/cache convenience alias — do
-          # NOT reference it from a chart, it has no GitOps trail. `:<sha>` is kept
-          # for digest pinning / back-compat with older charts.
-          tags: |
-            registry.bk.glpx.pro/${{ inputs.image-name }}:${{ steps.meta.outputs.stamp }}
-            registry.bk.glpx.pro/${{ inputs.image-name }}:latest
-            registry.bk.glpx.pro/${{ inputs.image-name }}:${{ gitea.sha }}
-          # Registry-backed layer cache: shared across runners, big speedup on rebuilds.
-          cache-from: type=registry,ref=registry.bk.glpx.pro/${{ inputs.image-name }}:buildcache
-          cache-to: type=registry,ref=registry.bk.glpx.pro/${{ inputs.image-name }}:buildcache,mode=max
-          # Forwarded only when the caller passes NPM_TOKEN; consumed by Dockerfiles
-          # via `RUN --mount=type=secret,id=glpx_npm_token`. Empty otherwise (no-op).
-          secrets: |
-            glpx_npm_token=${{ secrets.NPM_TOKEN }}
+          # auto-bumps. `:latest` stays as a rolling/cache convenience alias; do
+          # not reference it from a chart. `:<sha>` is kept for digest pinning and
+          # back-compat with older charts.
+          docker buildx build \
+            --push \
+            --platform "$PLATFORMS" \
+            --network "$BUILD_NETWORK" \
+            "${allow_args[@]}" \
+            "${build_args[@]}" \
+            "${secret_args[@]}" \
+            --file "${BUILD_CONTEXT}/${BUILD_DOCKERFILE}" \
+            --tag "registry.bk.glpx.pro/${IMAGE_NAME}:${IMAGE_TAG}" \
+            --tag "registry.bk.glpx.pro/${IMAGE_NAME}:latest" \
+            --tag "registry.bk.glpx.pro/${IMAGE_NAME}:${SHA_TAG}" \
+            --cache-from "type=registry,ref=registry.bk.glpx.pro/${IMAGE_NAME}:buildcache" \
+            --cache-to "type=registry,ref=registry.bk.glpx.pro/${IMAGE_NAME}:buildcache,mode=max" \
+            "$BUILD_CONTEXT"
