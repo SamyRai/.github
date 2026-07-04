@@ -127,7 +127,6 @@ jobs:
           IMAGE_TAG: ${{ steps.meta.outputs.stamp }}
           NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
           PLATFORMS: ${{ inputs.platforms }}
-          SHA_TAG: ${{ gitea.sha }}
         run: |
           set -euo pipefail
           cd "$GITHUB_WORKSPACE"
@@ -151,14 +150,17 @@ jobs:
             secret_args+=(--secret id=glpx_npm_token,env=NPM_TOKEN)
           fi
 
-          # `:<stamp>` is the immutable tag GitOps charts reference and Renovate
-          # auto-bumps. `:<sha>` is kept for digest pinning and back-compat.
-          # We deliberately do NOT push `:latest`: charts must never reference it
-          # (ArgoCD sees no diff, no rollback), and Harbor tag-immutability rules
-          # reject overwriting it with 412 Precondition Failed, which was failing
-          # the whole build. Cross-build caching uses the dedicated `:buildcache`
-          # tag, not `:latest`, so nothing is lost. Legacy charts still on
-          # `:latest` must migrate to the `:<stamp>` tag (see SHIP_PIPELINE.md).
+          # We push exactly ONE tag: `:<stamp>` (YYYYMMDDHHMMSS-<sha7>), the
+          # immutable tag GitOps charts reference and Renovate auto-bumps. The
+          # short git sha is embedded in it, and the build output manifest digest
+          # gives exact `@sha256:` pinning, so a separate full-`:<sha>` tag was
+          # redundant — and it triggered the SAME `412 Precondition Failed` that
+          # `:latest` did: pushing a second tag pointing at the just-pushed
+          # manifest trips Harbor's tag-immutability rule and fails the whole
+          # build (see run 14581, 2026-07-05). We deliberately push neither
+          # `:latest` nor `:<sha>`. Cross-build caching uses the dedicated
+          # `:buildcache` tag. Legacy charts on `:latest` or a full `:<sha>` tag
+          # must migrate to the `:<stamp>` tag (see SHIP_PIPELINE.md).
           docker buildx build \
             --push \
             --platform "$PLATFORMS" \
@@ -168,7 +170,6 @@ jobs:
             "${secret_args[@]}" \
             --file "${BUILD_CONTEXT}/${BUILD_DOCKERFILE}" \
             --tag "registry.bk.glpx.pro/${IMAGE_NAME}:${IMAGE_TAG}" \
-            --tag "registry.bk.glpx.pro/${IMAGE_NAME}:${SHA_TAG}" \
             --cache-from "type=registry,ref=registry.bk.glpx.pro/${IMAGE_NAME}:buildcache" \
             --cache-to "type=registry,ref=registry.bk.glpx.pro/${IMAGE_NAME}:buildcache,mode=max" \
             "$BUILD_CONTEXT"
