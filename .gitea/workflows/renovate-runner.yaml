@@ -23,8 +23,8 @@ jobs:
           RENOVATE_ENDPOINT: https://gitea.bk.glpx.pro/api/v1
           RENOVATE_TOKEN: ${{ secrets.RENOVATE_TOKEN }}
           RENOVATE_GITHUB_COM_TOKEN: ${{ secrets.RENOVATE_GITHUB_COM_TOKEN }}
-          HARBOR_USERNAME: ${{ secrets.HARBOR_USERNAME }}
-          HARBOR_PASSWORD: ${{ secrets.HARBOR_PASSWORD }}
+          REGISTRY_USERNAME: ${{ secrets.REGISTRY_USERNAME }}
+          REGISTRY_PASSWORD: ${{ secrets.REGISTRY_PASSWORD }}
           RENOVATE_CONFIG_FILE: config.js
           RENOVATE_AUTODISCOVER: "true"
           LOG_LEVEL: debug

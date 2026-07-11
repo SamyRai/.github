@@ -42,8 +42,8 @@ module.exports = {
     {
       matchHost: "registry.bk.glpx.pro",
       hostType: "docker",
-      ...(process.env.HARBOR_USERNAME && { username: process.env.HARBOR_USERNAME }),
-      ...(process.env.HARBOR_PASSWORD && { password: process.env.HARBOR_PASSWORD }),
+      ...(process.env.REGISTRY_USERNAME && { username: process.env.REGISTRY_USERNAME }),
+      ...(process.env.REGISTRY_PASSWORD && { password: process.env.REGISTRY_PASSWORD }),
       abortOnError: true,
       concurrentRequestLimit: 4,
     },
