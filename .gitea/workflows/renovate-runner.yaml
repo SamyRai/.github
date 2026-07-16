@@ -1,7 +1,11 @@
 name: Renovate Global Bot
 on:
   schedule:
-    - cron: "0 * * * *"
+    # Was hourly ("0 * * * *"): each run pulls the 1.3GB renovate image and
+    # re-clones every discovered repo through DinD — a global run saturated
+    # laika's boot NVMe for 90+ min on 2026-07-16 (NodeDiskIOSaturation).
+    # 4x/day off the top-of-hour spike is plenty for a personal forge.
+    - cron: "15 2,8,14,20 * * *"
   push:
     branches:
       - main
@@ -12,7 +16,10 @@ jobs:
   renovate:
     runs-on: ubuntu-latest
     container:
-      image: ghcr.io/renovatebot/renovate:latest
+      # Major-pinned (was :latest): patch/minor updates still flow, but a major
+      # bump is an explicit edit here, and repeat pulls hit cached layers far
+      # more often than :latest churn. 43.265.2 was current at pin time.
+      image: ghcr.io/renovatebot/renovate:43
     steps:
       - name: Checkout
         uses: actions/checkout@v7
@@ -27,4 +34,6 @@ jobs:
           REGISTRY_PASSWORD: ${{ secrets.REGISTRY_PASSWORD }}
           RENOVATE_CONFIG_FILE: config.js
           RENOVATE_AUTODISCOVER: "true"
-          LOG_LEVEL: debug
+          # debug multiplied log volume across every repo of a global run;
+          # Actions logs land in the gitea DB (dbfs_data) and fed the WAL bloat.
+          LOG_LEVEL: info
