@@ -40,10 +40,16 @@ jobs:
           deno-version: ${{ inputs.deno-version }}
 
       - name: Setup @glpx npm auth
+        # Inlined (was a composite action in this repo): step-level `uses:`
+        # references resolve against github.com on the runner, and this repo
+        # only exists on gitea — the pre-clone failed every job.
         if: ${{ secrets.NPM_TOKEN != '' }}
-        uses: mukimovd/.github/.gitea/actions/setup-glpx-npm@main
-        with:
-          token: ${{ secrets.NPM_TOKEN }}
+        shell: bash
+        run: |
+          printf '//gitea.bk.glpx.pro/api/packages/glpx/npm/:_authToken=%s\n' \
+            "${{ secrets.NPM_TOKEN }}" >> "$HOME/.npmrc"
+          printf '@glpx:registry=https://gitea.bk.glpx.pro/api/packages/glpx/npm/\n' \
+            >> "$HOME/.npmrc"
 
       - name: Install dependencies
         run: deno ci
