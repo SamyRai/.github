@@ -8,6 +8,27 @@ a drop-in `.gitea/workflows/ci.yml` that calls the canonical reusable workflow f
 Copy the matching one into a new repo, commit, push — CI runs on the next Gitea Actions
 trigger with no further wiring.
 
+## Automated onboarding (`glpxctl`)
+
+Most of the manual flow below is now one command in the `glpxctl` CLI (see
+[`cluster/docs/glpxctl.md`](https://gitea.bk.glpx.pro/mukimovd/helm/src/branch/main/docs/glpxctl.md)
+§ App onboarding primitives). The headline `glpxctl onboard <owner>/<repo>` orchestrates
+the whole flow; in the meantime each step has its own primitive:
+
+| Manual step | `glpxctl` equivalent |
+|---|---|
+| Harbor project + robot + Vault creds | `glpxctl harbor ensure <project> --robot <name> --vault-path baikonur/<project>/harbor --allow-runtime-write` (now verifies the robot landed) |
+| Set `REGISTRY_*` / `GLPX_NPM_TOKEN` on the repo | `glpxctl secret set <owner>/<repo> <NAME> --from-vault <path> --allow-runtime-write` |
+| Copy the template + substitute `CHANGEME` | `glpxctl ci scaffold <repo-root> --type <stack> --image-name <n> [--npm-token] --apply` |
+| Confirm the build landed | `glpxctl harbor tags <project>/<repo>` |
+| Bootstrap the first `<stamp>` into the chart | `glpxctl gitops bump-image <app> <stamp> --apply` |
+| Pre-push base-image drift check | `glpxctl drift list --root <repo> --paths 'Dockerfile*'` |
+
+`glpxctl onboard <owner>/<repo> --type go-service --image-name <n> --apply` is the target
+end-state (full-stack, incl. helm chart + `apps.yaml` insert + `appset generate`); see
+`cluster/TODO.md` §26 for status. The manual steps below remain the ground truth and the
+reference for what each primitive does.
+
 ## Prerequisites (one-time, per repo)
 
 The reusable workflows read secrets from the **org (`glpx`) and user (`mukimovd`) level** in
