@@ -1,3 +1,18 @@
+// Fail-loud guard: the Harbor hostRule below degrades SILENTLY to anonymous
+// when REGISTRY_USERNAME/PASSWORD are unset (conditional spread), which makes
+// every private registry.bk.glpx.pro image return `no-result` and silently
+// stalls the whole fleet's auto-deploy (root cause of the 2026-07-18 incident).
+// Surface it prominently instead of failing quietly.
+if (!process.env.REGISTRY_USERNAME || !process.env.REGISTRY_PASSWORD) {
+  console.warn(
+    "[renovate] WARNING: REGISTRY_USERNAME/REGISTRY_PASSWORD unset — Harbor " +
+      "(registry.bk.glpx.pro) lookups will run ANONYMOUSLY and return no-result " +
+      "for private images, stalling auto-deploy. Set the mukimovd/.github " +
+      "Actions secrets to robot$renovate-reader (Vault secret/baikonur/harbor/" +
+      "robots/renovate-reader).",
+  );
+}
+
 module.exports = {
   platform: "gitea",
   endpoint: "https://gitea.bk.glpx.pro/api/v1",
