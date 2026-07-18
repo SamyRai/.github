@@ -21,6 +21,7 @@ defaults.
 - **`profile/README.md`** — the org profile page shown on both Gitea and GitHub.
 - **`BASE_IMAGES.md`** — base-image policy for `glpx/*` and `mukimovd/*` Dockerfiles.
 - **`templates/`** — consumer CI scaffolds; see [`ONBOARDING.md`](./ONBOARDING.md).
+- **`ORGANIZATION_SETTINGS.md`** — reference checklist for org-level branch protection / Actions / security settings (applied in the Gitea UI, not enforced here).
 
 > [!NOTE]
 > **GitHub is a read-only mirror.** The source of truth is
