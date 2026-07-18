@@ -4,6 +4,50 @@ This directory contains the global reusable workflow templates for Gitea Actions
 
 ## Reusable Workflows
 
+> [!IMPORTANT]
+> **Renovate is the sole dependency updater** for this fleet. Dependabot is intentionally
+> not used (it was retired in favor of Renovate's registry-aware automerge loop). Do not add
+> a `dependabot.yml` to consumer repos.
+
+### Stack CI workflows (one per language)
+
+| Workflow | Stack | Notes |
+|---|---|---|
+| `go-ci.yml` | Go (lib/CLI) | `go test`, vet, `go mod tidy` check. `-race` gated on amd64. |
+| `go-integration-ci.yml` | Go + Postgres | Uses a `postgres:18-alpine` service container. |
+| `deno-ci.yml` | Deno | `deno ci`, fmt, lint, task check, task test. Optional `@glpx` npm auth. |
+| `node-ci.yml` | Node | Yarn (corepack) w/ npm fallback. Optional `@glpx` npm auth. |
+| `bun-ci.yml` | Bun | install, lint, typecheck, test. |
+| `python-ci.yml` | Python | uv + ruff + pytest. **Restricted to `<3.14`** (see below). |
+| `rust-ci.yml` | Rust | fmt, clippy `-D warnings`, workspace test. |
+| `ruby-ci.yml` | Ruby | rubocop + rspec/rails test (fail-loud). |
+| `hugo-ci.yml` | Hugo | extended build with `--gc --minify`, submodules. |
+
+### Build / deploy workflows
+
+| Workflow | Purpose |
+|---|---|
+| `docker-ci.yml` | **Canonical** Docker build/push. Pushes one immutable `YYYYMMDDHHMMSS-<sha7>` tag; Renovate auto-bumps GitOps values on green. |
+| `compose-ci.yml` | Bring up a compose stack, run e2e/integration, tear down. Two models: `exit-from` or `test-command`. |
+| `deno-compile.yml` | Cross-compile Deno binaries (5 targets). |
+| `deno-publish-jsr.yml` | Publish to JSR via `deno publish` (OIDC). |
+| `npm-publish.yml` | Publish `@glpx` scoped packages to the Gitea npm registry (npm/yarn/bun). |
+| `release.yml` | GoReleaser release (with UPX). |
+| `base-images-guard.yml` | Enforces `BASE_IMAGES.md` policy (no floating tags, must-mirror list). |
+| `security-sweep.yml` | gosec over Go code. |
+
+### Catalog workflows (this repo only)
+
+| Workflow | Purpose |
+|---|---|
+| `actionlint.yml` | Lints `.gitea/workflows/*.yml`. |
+| `renovate-runner.yaml` | The global Renovate bot (4x/day off-peak + push + dispatch). |
+
+## Consumer scaffolds
+
+New repos should copy a template from [`../templates/ci/`](../templates/ci/) rather than
+hand-write a `uses:` reference. See [`../ONBOARDING.md`](../ONBOARDING.md).
+
 ### `npm-publish.yml`
 A shared CD workflow for publishing NPM packages to the Gitea registry. It supports `npm`, `yarn`, and `bun` as package managers.
 

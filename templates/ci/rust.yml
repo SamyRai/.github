@@ -1,0 +1,18 @@
+# Consumer CI — Rust (fmt, clippy -D warnings, workspace test).
+# Drop into <repo>/.gitea/workflows/ci.yml and remove this header comment.
+name: CI
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+    branches: [main, master]
+
+permissions:
+  contents: read
+
+jobs:
+  rust-ci:
+    uses: mukimovd/.github/.gitea/workflows/rust-ci.yml@main
+    # with:
+    #   working-directory: 'worker'  # for monorepos

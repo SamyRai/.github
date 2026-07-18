@@ -30,9 +30,29 @@ of vetted bases and dodges Docker Hub anonymous rate limits.
 Drift to fix (Epic C): `alpine:latest` (pkg, meta_graph_sdk), `golang:alpine` (go_ast_tool),
 `golang:1.23` (fabrika_smm), deno `2.1.4` (ship-game), unpinned `nginx:alpine` (bugulma-home).
 
+## CI enforcement
+
+New drift is blocked at CI by the reusable `base-images-guard.yml` workflow. Wire it into any
+repo with a Dockerfile/compose/Helm values:
+
+```yaml
+jobs:
+  base-images:
+    uses: mukimovd/.github/.gitea/workflows/base-images-guard.yml@main
+```
+
+It fails on floating tags (`:latest`, unpinned `:alpine`/`:bookworm`/`:slim`) and on
+must-mirror images used without the `registry.bk.glpx.pro/library/` prefix. Existing drift
+(to fix list above) is exempt until migrated; the guard prevents *new* drift.
+
 ## Recommended improvement (platform follow-up)
 
 `library` is a **manually curated** project, not a pull-through cache — new bases need a
 manual push. Standing up a Harbor **proxy-cache** registry for `docker.io` (a `dockerhub`
 proxy project) would auto-mirror any pinned upstream image on first pull and remove the
 manual step entirely. This is the durable fix for both rate limits and consistency.
+
+> [!NOTE]
+> **Tracking:** the proxy-cache rollout is owned by the **cluster** repo (Harbor is deployed
+> there). Once it lands, the `base-images-guard.yml` "must-mirror" list becomes the allowlist
+> of images that should be rewritten to the proxy URL instead of `library/`.

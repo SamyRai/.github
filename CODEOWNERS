@@ -20,6 +20,5 @@ Dockerfile @mukimovd
 /helm/ @mukimovd
 /kustomize/ @mukimovd
 
-# CI/CD Pipelines
-/.github/workflows/ @mukimovd
+# CI/CD Pipelines (Gitea Actions only; .github/ holds community files, no workflows)
 /.gitea/workflows/ @mukimovd

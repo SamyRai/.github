@@ -28,7 +28,17 @@ jobs:
         bundler-cache: true
 
     - name: Run Rubocop
-      run: bundle exec rubocop || true
+      run: bundle exec rubocop
 
     - name: Run tests
-      run: bundle exec rspec || bundle exec rails test || true
+      # Pick the test runner by what the project actually has: spec/ -> rspec,
+      # test/ (Rails) -> rails test. Fail loudly if neither is present.
+      run: |
+        if [ -d spec ]; then
+          bundle exec rspec
+        elif [ -d test ]; then
+          bundle exec rails test
+        else
+          echo "No spec/ or test/ directory found — nothing to run." >&2
+          exit 1
+        fi

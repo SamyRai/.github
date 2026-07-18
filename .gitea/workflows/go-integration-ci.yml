@@ -9,7 +9,7 @@ on:
         default: '1.26'
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}-integration
+  group: ${{ gitea.workflow }}-${{ gitea.ref }}-integration
   cancel-in-progress: true
 
 permissions:

@@ -1,0 +1,17 @@
+# Consumer CI — Python (uv + ruff + pytest).
+# Drop into <repo>/.gitea/workflows/ci.yml and remove this header comment.
+# Note: Python is fleet-restricted to <3.14 (enforced by renovate.json).
+name: CI
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+    branches: [main, master]
+
+permissions:
+  contents: read
+
+jobs:
+  python-ci:
+    uses: mukimovd/.github/.gitea/workflows/python-ci.yml@main

@@ -1,0 +1,116 @@
+# Enforces the BASE_IMAGES.md policy across Dockerfiles, docker-compose files, and Helm
+# values in repos that consume this reusable workflow. Fails loudly on:
+#   - floating upstream tags (:latest, unpinned :alpine/:bookworm)
+#   - upstream images that SHOULD be sourced from the Harbor mirror but aren't
+#   - Python runtime pins at 3.14+ (fleet-wide restriction, matches renovate.json)
+#
+# This is the CI-side enforcement of BASE_IMAGES.md's "Drift to fix (Epic C)" list.
+# The durable fix is the Harbor proxy-cache (see BASE_IMAGES.md "Recommended improvement");
+# this guard prevents new drift from landing while that work is pending.
+#
+# Callers reference: mukimovd/.github/.gitea/workflows/base-images-guard.yml@main
+name: Reusable Base-Images Guard
+
+on:
+  workflow_call:
+    inputs:
+      paths:
+        description: 'Space- or newline-separated list of paths/globs to scan (e.g. "." or "**/Dockerfile docker-compose*.yml"). Defaults to the whole repo.'
+        required: false
+        type: string
+        default: '.'
+
+permissions:
+  contents: read
+
+jobs:
+  base-images-guard:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Scan for base-image drift
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          # Images that MUST come from the curated Harbor mirror when used at all.
+          # Add entries here as the library/ project grows (see BASE_IMAGES.md).
+          declare -a must_mirror=(
+            "golang" "alpine" "nginx" "python" "node" "denoland/deno"
+            "rust" "buildkit" "temporal"
+          )
+
+          # Floating tags that are never allowed anywhere.
+          declare -a forbidden_tags=(":latest" ":alpine$" ":bookworm$" ":slim$")
+
+          scan_root="${{ inputs.paths }}"
+          # Collect candidate files: Dockerfiles, compose files, helm values.
+          mapfile -t files < <(
+            {
+              find $scan_root -type f \( -iname 'Dockerfile*' -o -iname '*.dockerfile' \) 2>/dev/null
+              find $scan_root -type f \( -iname 'docker-compose*.yml' -o -iname 'docker-compose*.yaml' -o -iname 'compose*.yml' -o -iname 'compose*.yaml' \) 2>/dev/null
+              find $scan_root -type f \( -iname 'values*.yaml' -o -iname 'values*.yml' \) -path '*/charts/*' 2>/dev/null
+            } | sort -u
+          )
+
+          if [ "${#files[@]}" -eq 0 ]; then
+            echo "No Dockerfiles/compose/values files found under '$scan_root' — nothing to scan."
+            exit 0
+          fi
+
+          drift=0
+          for f in "${files[@]}"; do
+            [ -f "$f" ] || continue
+            # Extract image references from FROM lines and `image:` YAML keys.
+            # Pipeline (order matters):
+            #   1. strip leading whitespace + the FROM/image: keyword
+            #   2. drop a leading --platform=... token (multi-arch Dockerfiles)
+            #   3. take the first whitespace-delimited token (the image ref)
+            #   4. strip any @sha256:... digest (digest-pinned images)
+            #   5. strip surrounding quotes (YAML `image: "foo:bar"`)
+            # This is deliberately a heuristic; false positives are preferable to silent drift.
+            while IFS= read -r line; do
+              image_ref=$(printf '%s' "$line" \
+                | sed -E 's/^[[:space:]]*(FROM|image:[[:space:]]*)//' \
+                | sed -E 's/^[[:space:]]*--platform=[^[:space:]]+[[:space:]]*//' \
+                | awk '{print $1}' \
+                | sed -E 's/@sha256:[0-9a-f]+$//')
+              image_ref="${image_ref//[\"]/}"
+              [ -n "$image_ref" ] || continue
+              # Skip AS aliases and build-stage refs in multi-stage Dockerfiles.
+              [ "$image_ref" = "AS" ] && continue
+
+              # 1. Forbidden floating tags anywhere.
+              for pat in "${forbidden_tags[@]}"; do
+                if printf '%s' "$image_ref" | grep -qE "$pat"; then
+                  echo "✗ DRIFT: $f uses floating tag '$image_ref' (matches $pat). Pin major.minor; see BASE_IMAGES.md."
+                  drift=1
+                fi
+              done
+
+              # 2. Must-mirror images used WITHOUT the curated library/ mirror prefix.
+              #    Accept only registry.bk.glpx.pro/library/<image>; other Harbor paths
+              #    (e.g. registry.bk.glpx.pro/glpx/<app>) are app images, not base images.
+              if ! printf '%s' "$image_ref" | grep -q '^registry\.bk\.glpx\.pro/library/'; then
+                base=$(printf '%s' "$image_ref" | cut -d: -f1 | sed 's|^library/||')
+                for m in "${must_mirror[@]}"; do
+                  if [ "$base" = "$m" ] || [ "$base" = "library/$m" ]; then
+                    echo "✗ DRIFT: $f uses '$image_ref' directly instead of the Harbor mirror."
+                    echo "         Replace with: registry.bk.glpx.pro/library/$m:<pinned-version>"
+                    echo "         (If not in the mirror yet, push it once — see BASE_IMAGES.md rule 3.)"
+                    drift=1
+                  fi
+                done
+              fi
+            done < <(grep -E '^[[:space:]]*(FROM|image:)' "$f" || true)
+          done
+
+          if [ "$drift" -ne 0 ]; then
+            echo
+            echo "Base-image drift detected. See BASE_IMAGES.md in mukimovd/.github for the policy."
+            echo "The durable fix (Harbor proxy-cache) is tracked as Epic C."
+            exit 1
+          fi
+
+          echo "✓ No base-image drift detected in ${#files[@]} file(s)."

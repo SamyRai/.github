@@ -1,0 +1,16 @@
+# Consumer CI — Go with a Postgres integration-test service container.
+# Drop into <repo>/.gitea/workflows/ci.yml and remove this header comment.
+name: CI
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+    branches: [main, master]
+
+permissions:
+  contents: read
+
+jobs:
+  go-integration-ci:
+    uses: mukimovd/.github/.gitea/workflows/go-integration-ci.yml@main

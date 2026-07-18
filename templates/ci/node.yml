@@ -1,0 +1,19 @@
+# Consumer CI — Node.js (Yarn via corepack, npm fallback).
+# Drop into <repo>/.gitea/workflows/ci.yml and remove this header comment.
+name: CI
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+    branches: [main, master]
+
+permissions:
+  contents: read
+
+jobs:
+  node-ci:
+    uses: mukimovd/.github/.gitea/workflows/node-ci.yml@main
+    secrets:
+      # Needed only if the repo imports @glpx scoped packages.
+      NPM_TOKEN: ${{ secrets.NPM_TOKEN }}

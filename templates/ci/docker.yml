@@ -1,0 +1,31 @@
+# Consumer CI — image-only repo (build + push on main, drift guard on every change).
+# Drop into <repo>/.gitea/workflows/ci.yml and remove this header comment.
+#
+# CHANGEME: set IMAGE_NAME below to the Harbor image path (e.g. glpx/pkg).
+name: CI
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+    branches: [main, master]
+
+permissions:
+  contents: read
+
+jobs:
+  base-images:
+    uses: mukimovd/.github/.gitea/workflows/base-images-guard.yml@main
+
+  docker:
+    if: gitea.ref == 'refs/heads/main' || gitea.ref == 'refs/heads/master'
+    needs: [base-images]
+    uses: mukimovd/.github/.gitea/workflows/docker-ci.yml@main
+    with:
+      image-name: glpx/CHANGEME  # e.g. glpx/pkg
+    secrets:
+      REGISTRY_USERNAME: ${{ secrets.REGISTRY_USERNAME }}
+      REGISTRY_PASSWORD: ${{ secrets.REGISTRY_PASSWORD }}
+      GITEA_TOKEN: ${{ secrets.GITEA_TOKEN }}
+      # Uncomment if the Dockerfile runs `npm install` / `deno install` for @glpx packages:
+      # NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
