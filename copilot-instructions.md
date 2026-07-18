@@ -1,12 +1,13 @@
 # AI Coding Assistant Instructions
 
-Welcome to the **Glowing Pixels UG (GLPX)** ecosystem! 
+Welcome to the **Glowing Pixels UG (GLPX)** ecosystem!
 
 When generating code, writing infrastructure manifests, or answering questions within this repository, please adhere to the following architectural and stylistic guidelines:
 
 ## 1. Operating Model & Source Control
 - **Gitea-First**: The GLPX source-control operating model is strictly Gitea-first. Active development and GitOps writes happen on Gitea (`gitea.bk.glpx.pro`). GitHub is used strictly as a read-only outbound mirror.
 - Do not suggest or write workflows that rely exclusively on GitHub Actions unless specified. Always ensure compatibility with Gitea Actions.
+- **Canonical shared-actions repo**: `mukimovd/.github` is the source of truth for reusable Gitea Actions workflows, composite actions, the Renovate config, and consumer CI templates. `glpx/.github` is a mirror of it (kept identical via force-push) so `glpx/*` repos can reference org-level defaults if ever needed. All active consumers reference `mukimovd/.github/.gitea/workflows/<name>@main`. Do not diverge the two; edit `mukimovd/.github` and re-mirror.
 
 ## 2. Infrastructure & Kubernetes
 - **Hub-and-Spoke GitOps**: The cluster is divided into a Hub (`Baikonur` context) running ArgoCD and managing workloads, and a Spoke (`Mir` context) running core services (Vault, PostgreSQL).
