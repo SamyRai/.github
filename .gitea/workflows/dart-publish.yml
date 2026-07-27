@@ -1,0 +1,78 @@
+name: Reusable Dart/Flutter Pub Publish
+#
+# Mirrors npm-publish.yml. Publishes a Dart/Flutter package to the private
+# Gitea pub registry (`https://gitea.glpx.pro/api/packages/glpx/pub/`).
+#
+# The package's pubspec.yaml MUST have `publish_to:` pointing at the same URL
+# (or omit it and pass registry-url); `dart pub publish` refuses to upload to a
+# URL other than the one declared in the pubspec, so they must agree.
+#
+# Versions are immutable on the Gitea registry: a re-publish of an existing
+# name+version fails. There is no retraction window (unlike pub.dev); delete the
+# package version in the Gitea UI first if you genuinely need to overwrite.
+#
+# First publish of a brand-new package name works without ceremony (no pub.dev
+# "manual first publish" limitation) — Gitea has no package-name creation gate.
+on:
+  workflow_call:
+    inputs:
+      flutter-version:
+        description: 'Flutter SDK version'
+        required: false
+        type: string
+        default: '3.44.7'
+      registry-url:
+        description: 'Gitea pub registry URL'
+        required: false
+        type: string
+        default: 'https://gitea.glpx.pro/api/packages/glpx/pub/'
+      working-directory:
+        description: 'Directory containing the package to publish (for monorepos)'
+        required: false
+        type: string
+        default: '.'
+      cache:
+        description: 'Cache the Flutter SDK'
+        required: false
+        type: boolean
+        default: true
+    secrets:
+      PUB_TOKEN:
+        required: true
+
+concurrency:
+  group: ${{ gitea.workflow }}-${{ gitea.head_ref || gitea.ref }}
+  cancel-in-progress: false   # never cancel a mid-flight publish
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: 'stable'
+          flutter-version: ${{ inputs.flutter-version }}
+          cache: ${{ inputs.cache }}
+
+      - name: Authenticate with registry
+        run: dart pub token add '${{ inputs.registry-url }}' --secret '${{ secrets.PUB_TOKEN }}'
+
+      - name: Resolve dependencies
+        working-directory: ${{ inputs.working-directory }}
+        run: flutter pub get
+
+      - name: Publish (dry-run audit first)
+        working-directory: ${{ inputs.working-directory }}
+        run: dart pub publish --dry-run
+
+      - name: Publish
+        working-directory: ${{ inputs.working-directory }}
+        run: dart pub publish --force

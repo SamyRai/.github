@@ -22,6 +22,7 @@ This directory contains the global reusable workflow templates for Gitea Actions
 | `rust-ci.yml` | Rust | fmt, clippy `-D warnings`, workspace test. |
 | `ruby-ci.yml` | Ruby | rubocop + rspec/rails test (fail-loud). |
 | `hugo-ci.yml` | Hugo | extended build with `--gc --minify`, submodules. |
+| `dart-ci.yml` | Dart/Flutter | Resolves deps, runs the repo verifier (`dart run tool/tasks.dart verify` for dev-kit repos) or analyze+test fallback. Optional Gitea pub-registry auth for `glpx`-scoped Dart packages. |
 
 ### Build / deploy workflows
 
@@ -32,6 +33,7 @@ This directory contains the global reusable workflow templates for Gitea Actions
 | `deno-compile.yml` | Cross-compile Deno binaries (5 targets). |
 | `deno-publish-jsr.yml` | Publish to JSR via `deno publish` (OIDC). |
 | `npm-publish.yml` | Publish `@glpx` scoped packages to the Gitea npm registry (npm/yarn/bun). |
+| `dart-publish.yml` | Publish Dart/Flutter packages to the Gitea pub registry. Dry-run audit then `dart pub publish --force`. |
 | `release.yml` | GoReleaser release (with UPX). |
 | `base-images-guard.yml` | Enforces `BASE_IMAGES.md` policy (no floating tags, must-mirror list). |
 | `security-sweep.yml` | gosec over Go code. |
@@ -64,6 +66,27 @@ jobs:
     with:
       entrypoint: 'main.ts'
       binary-name: 'my-app'
+```
+
+### Flutter / Dart Workflows
+- **`dart-ci.yml`**: Standard CI for Dart/Flutter. Sets up the pinned Flutter SDK, optionally authenticates to the private Gitea pub registry, resolves deps, and runs the repo verifier (`dart run tool/tasks.dart verify` when `tool/tasks.dart` is present, else `dart analyze --fatal=infos` + `flutter test`).
+- **`dart-publish.yml`**: Publishes a Dart/Flutter package to the private Gitea pub registry (`https://gitea.glpx.pro/api/packages/glpx/pub/`). Authenticates with a PAT, audits via `dart pub publish --dry-run`, then publishes with `--force` (no interactive prompt in CI). The package's `publish_to:` must agree with `registry-url`. Versions are immutable on Gitea (no retraction window; delete in the UI first to overwrite).
+
+**Required secret:** `PUB_TOKEN` — a Gitea PAT with `read:package` + `write:package`, stored at the `glpx` org / `mukimovd` user level (same strategy as `GLPX_NPM_TOKEN`). First publish of a new package name works without ceremony (no pub.dev "manual first publish" gate).
+
+**Usage Example (Publish, tag-triggered):**
+```yaml
+on:
+  push:
+    tags: ['*-v*']   # e.g. glpx_flutter_connectivity-v0.2.0
+
+jobs:
+  publish:
+    uses: mukimovd/.github/.gitea/workflows/dart-publish.yml@main
+    with:
+      working-directory: packages/glpx_flutter_connectivity   # for monorepos
+    secrets:
+      PUB_TOKEN: ${{ secrets.PUB_TOKEN }}
 ```
 
 ## Python Version Restrictions

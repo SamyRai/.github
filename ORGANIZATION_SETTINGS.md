@@ -41,6 +41,7 @@ Configure these rules for the default branch (`main`) in each repository:
   - `REGISTRY_USERNAME` / `REGISTRY_PASSWORD` — Harbor push robot (per-app project-scoped, provisioned via `glpxctl harbor ensure`)
   - `GITEA_TOKEN` — runner-side Gitea clone/pull (user-level PAT)
   - `NPM_TOKEN` / `GLPX_NPM_TOKEN` — private `@glpx` Gitea npm registry
+  - `PUB_TOKEN` — private Gitea Dart pub registry (`read:package` + `write:package` PAT; mirrors `GLPX_NPM_TOKEN`'s pattern)
   - `DOCKERHUB_USERNAME` / `DOCKERHUB_TOKEN` — optional, upstream rate-limit headroom (user-level)
 
 ## Security
