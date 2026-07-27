@@ -63,26 +63,30 @@ module.exports = {
   hostRules: [
     {
       // Harbor (registry.bk.glpx.pro) — image-tag source for the whole fleet's
-      // GitOps repo (mukimovd/helm). Read-only: robot$renovate-reader has pull
-      // + list (repo + tag) scope on every project.
+      // GitOps repo (mukimovd/helm, ~470 deps across all apps). Read-only:
+      // robot$renovate-reader has pull + list (repo + tag) scope on every project.
       matchHost: "registry.bk.glpx.pro",
       hostType: "docker",
       ...(process.env.REGISTRY_USERNAME && { username: process.env.REGISTRY_USERNAME }),
       ...(process.env.REGISTRY_PASSWORD && { password: process.env.REGISTRY_PASSWORD }),
-      // Keep abortOnError so genuine registry outages (5xx, auth, network) still
-      // surface loudly — BUT tolerate HTTP 412. Harbor's deployment-security
-      // policy ("Prevent images with vulnerability severity High+ from running")
-      // returns 412 PROJECTPOLICYVIOLATION when Renovate fetches the manifest of
-      // a vulnerable image. Without this ignore, a SINGLE vulnerable image
-      // anywhere in mukimovd/helm aborts the ENTIRE repo (abortOnError), so every
-      // app — including clean ones like tercul/backend — silently stops getting
-      // image bumps. This was the root cause of the 2026-07 fleet-wide
-      // no-auto-deploy stall (tercul backend pinned 9 days behind main).
-      // 412 is per-image; tolerating it makes that one lookup a soft "no-result"
-      // while the rest of the repo processes normally. Harbor tracking issues:
-      // goharbor/harbor#19408, #15885 (policy middleware fires on manifest HEAD/GET).
-      abortOnError: true,
-      abortIgnoreStatusCodes: [412],
+      // NO abortOnError here, deliberately. With abortOnError:true a SINGLE
+      // per-image HTTP error aborts the ENTIRE mukimovd/helm repo, so every app
+      // — including clean ones like tercul/backend — silently stops getting
+      // image bumps, and the run stays green (per-repo abort, not a run failure).
+      // This was the root cause of the 2026-07 fleet-wide no-auto-deploy stall:
+      // first agent/go-agent's vulnerable manifests returned 412
+      // PROJECTPOLICYVIOLATION (Harbor's "prevent High+ vulns" policy —
+      // goharbor/harbor#19408/#15885), then after a [412]-only ignore was added,
+      // a non-existent glpx/runner-ubuntu-latest:latest returned 404 — each one
+      // aborted the repo and re-stalled the whole fleet. A read-only lookup over
+      // hundreds of images will always have some per-image failures; they must
+      // NOT block the rest. Default behavior (abortOnError:false) isolates a
+      // per-dep error to a soft "no-result" for that one dependency while the
+      // other deps (tercul/backend, kb-server, …) process normally. Genuine
+      // fleet-wide registry outages surface via the run logs / dashboard anyway.
+      // See dev_kb glpx-devops/references/harbor.md → "Harbor 412 + Renovate
+      // abortOnError". Do NOT re-add abortOnError here without a tested plan
+      // for every status code a multi-image repo can return.
       concurrentRequestLimit: 4,
     },
     {
