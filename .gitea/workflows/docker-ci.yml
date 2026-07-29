@@ -50,6 +50,9 @@ on:
       NPM_TOKEN:
         required: false
         description: 'Private @glpx Gitea npm token, forwarded as a BuildKit secret (id=glpx_npm_token) for Dockerfiles that run `deno install`/`npm install` at build time.'
+      GO_MODULE_TOKEN:
+        required: false
+        description: 'Gitea read:package token, forwarded as a BuildKit secret (id=go_module_token) for Dockerfiles that run `go mod download` against the private Gitea Go registry. A BuildKit secret (not a build-arg) so the credential never lands in image history.'
     outputs:
       image-tag:
         description: 'Canonical immutable tag that was pushed: YYYYMMDDHHMMSS-<sha7>. Feed it into a GitOps values bump, or let Renovate pick it up.'
@@ -126,6 +129,7 @@ jobs:
           IMAGE_NAME: ${{ inputs.image-name }}
           IMAGE_TAG: ${{ steps.meta.outputs.stamp }}
           NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+          GO_MODULE_TOKEN: ${{ secrets.GO_MODULE_TOKEN }}
           PLATFORMS: ${{ inputs.platforms }}
         run: |
           set -euo pipefail
@@ -148,6 +152,9 @@ jobs:
           secret_args=()
           if [ -n "${NPM_TOKEN}" ]; then
             secret_args+=(--secret id=glpx_npm_token,env=NPM_TOKEN)
+          fi
+          if [ -n "${GO_MODULE_TOKEN}" ]; then
+            secret_args+=(--secret id=go_module_token,env=GO_MODULE_TOKEN)
           fi
 
           # We push exactly ONE tag: `:<stamp>` (YYYYMMDDHHMMSS-<sha7>), the
