@@ -23,7 +23,7 @@ on:
         type: string
         default: 'stable'
       verify-command:
-        description: 'Custom single verify command to run instead of the built-in format/analyze/test steps (e.g. "dart run tool/tasks.dart verify"). When empty, the built-in steps run.'
+        description: 'Custom verification command to run after the locked install, without registry credentials. It must skip dependency resolution (for example, use --no-pub). When empty, the built-in steps run.'
         required: false
         type: string
         default: ''
@@ -105,9 +105,8 @@ jobs:
 
       - name: Verify (custom command)
         if: inputs.verify-command != ''
-        env:
-          # Custom gates may bootstrap or resolve dependencies themselves.
-          PUB_TOKEN: ${{ secrets.PUB_TOKEN }}
+        # The locked install above is the sole registry-authenticated step.
+        # Custom commands must use the installed package configuration.
         run: ${{ inputs.verify-command }}
 
       - name: Dart format (check)

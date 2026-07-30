@@ -77,15 +77,20 @@ def verify_pub_token_scope() -> list[str]:
     steps = STEP.split(workflow.read_text())[1:]
     for step in steps:
         name, _, body = step.partition("\n")
-        needs_pub_token = (
-            "flutter pub get" in body
-            or "run: ${{ inputs.verify-command }}" in body
-        )
+        needs_pub_token = "flutter pub get" in body
         if needs_pub_token and "PUB_TOKEN: ${{ secrets.PUB_TOKEN }}" not in body:
             failures.append(
                 f"{workflow.relative_to(REPO)}: step {name!r} may run Pub after "
                 "`dart pub token add --env-var PUB_TOKEN`, but does not expose "
                 "`secrets.PUB_TOKEN` in that step."
+            )
+
+        invokes_custom_verify = "run: ${{ inputs.verify-command }}" in body
+        if invokes_custom_verify and "PUB_TOKEN: ${{ secrets.PUB_TOKEN }}" in body:
+            failures.append(
+                f"{workflow.relative_to(REPO)}: step {name!r} exposes "
+                "`secrets.PUB_TOKEN` to a custom verification command; registry "
+                "credentials must remain scoped to the locked install step."
             )
 
         invokes_flutter_analyze = "flutter analyze" in body
