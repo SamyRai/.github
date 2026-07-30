@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Verify every templates/ci/*.yml surfaces the secrets its reusable workflows declare.
+"""Verify reusable-workflow secret forwarding and environment-backed token scope.
 
 Why this exists
 ---------------
@@ -36,6 +36,7 @@ WORKFLOWS = REPO / ".gitea" / "workflows"
 # `uses: mukimovd/.github/.gitea/workflows/<name>@<ref>`
 USES = re.compile(r"^\s*uses:\s*mukimovd/\.github/\.gitea/workflows/([\w.-]+)@")
 SECRET_KEY = re.compile(r"^(\s+)([A-Z][A-Z0-9_]*):\s*$")
+STEP = re.compile(r"(?m)^      - name:\s+")
 
 
 def indent_of(line: str) -> int:
@@ -66,6 +67,38 @@ def declared_secrets(workflow: Path) -> list[str]:
     return names
 
 
+def verify_pub_token_scope() -> list[str]:
+    """Reject Pub commands that cannot resolve an environment-backed token."""
+    workflow = WORKFLOWS / "flutter-ci.yml"
+    if not workflow.is_file():
+        return [f"{workflow.relative_to(REPO)}: workflow not found"]
+
+    failures: list[str] = []
+    steps = STEP.split(workflow.read_text())[1:]
+    for step in steps:
+        name, _, body = step.partition("\n")
+        needs_pub_token = (
+            "flutter pub get" in body
+            or "run: ${{ inputs.verify-command }}" in body
+        )
+        if needs_pub_token and "PUB_TOKEN: ${{ secrets.PUB_TOKEN }}" not in body:
+            failures.append(
+                f"{workflow.relative_to(REPO)}: step {name!r} may run Pub after "
+                "`dart pub token add --env-var PUB_TOKEN`, but does not expose "
+                "`secrets.PUB_TOKEN` in that step."
+            )
+
+        invokes_flutter_analyze = "flutter analyze" in body
+        if invokes_flutter_analyze and "--no-pub" not in body:
+            failures.append(
+                f"{workflow.relative_to(REPO)}: step {name!r} runs "
+                "`flutter analyze` without `--no-pub`; dependency resolution "
+                "must stay in the authenticated install step."
+            )
+
+    return failures
+
+
 def main() -> int:
     if not TEMPLATES.is_dir():
         print(f"error: {TEMPLATES} not found", file=sys.stderr)
@@ -91,6 +124,8 @@ def main() -> int:
                         f"secret {secret}, but the template never mentions it. Forward it "
                         f"under `secrets:`, or add a comment saying why it is not needed."
                     )
+
+    failures.extend(verify_pub_token_scope())
 
     if failures:
         print("CI template / reusable-workflow secret drift:\n", file=sys.stderr)

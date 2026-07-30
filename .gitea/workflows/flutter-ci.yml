@@ -96,10 +96,18 @@ jobs:
           dart pub token add "$PUB_REGISTRY_URL" --env-var PUB_TOKEN
 
       - name: Install dependencies
+        env:
+          # `dart pub token add --env-var` stores this variable name rather
+          # than copying the credential. Keep the value available whenever Pub
+          # may resolve the authenticated hosted package.
+          PUB_TOKEN: ${{ secrets.PUB_TOKEN }}
         run: flutter pub get --enforce-lockfile
 
       - name: Verify (custom command)
         if: inputs.verify-command != ''
+        env:
+          # Custom gates may bootstrap or resolve dependencies themselves.
+          PUB_TOKEN: ${{ secrets.PUB_TOKEN }}
         run: ${{ inputs.verify-command }}
 
       - name: Dart format (check)
@@ -108,7 +116,7 @@ jobs:
 
       - name: Analyze
         if: inputs.verify-command == ''
-        run: flutter analyze --fatal-infos --fatal-warnings
+        run: flutter analyze --no-pub --fatal-infos --fatal-warnings
 
       - name: Custom lint
         if: inputs.verify-command == '' && inputs.custom-lint
