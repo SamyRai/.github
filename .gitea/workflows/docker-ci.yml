@@ -43,6 +43,7 @@ on:
         required: true
       GITEA_TOKEN:
         required: true
+        description: 'Gitea repository token used for checkout and forwarded as BuildKit secret id=gitea_token for private Git dependencies.'
       DOCKERHUB_USERNAME:
         required: false
       DOCKERHUB_TOKEN:
@@ -53,10 +54,19 @@ on:
       GO_MODULE_TOKEN:
         required: false
         description: 'Gitea read:package token, forwarded as a BuildKit secret (id=go_module_token) for Dockerfiles that run `go mod download` against the private Gitea Go registry. A BuildKit secret (not a build-arg) so the credential never lands in image history.'
+      PUB_TOKEN:
+        required: false
+        description: 'Private Pub read token, forwarded as BuildKit secret id=pub_token for Dart/Flutter dependency resolution.'
     outputs:
       image-tag:
         description: 'Canonical immutable tag that was pushed: YYYYMMDDHHMMSS-<sha7>. Feed it into a GitOps values bump, or let Renovate pick it up.'
         value: ${{ jobs.build-and-push.outputs.image-tag }}
+      image-digest:
+        description: 'Registry manifest digest produced by BuildKit (sha256:...).'
+        value: ${{ jobs.build-and-push.outputs.image-digest }}
+      image-reference:
+        description: 'Exact immutable repository@sha256:... reference from the release receipt.'
+        value: ${{ jobs.build-and-push.outputs.image-reference }}
 
 permissions:
   contents: read
@@ -70,6 +80,8 @@ jobs:
     runs-on: generic
     outputs:
       image-tag: ${{ steps.meta.outputs.stamp }}
+      image-digest: ${{ steps.push.outputs.digest }}
+      image-reference: ${{ steps.push.outputs.reference }}
     steps:
       - name: Checkout code from Gitea
         env:
@@ -120,6 +132,7 @@ jobs:
         run: echo "stamp=$(date +%Y%m%d%H%M%S)-$(echo "${{ gitea.sha }}" | cut -c1-7)" >> "$GITHUB_OUTPUT"
 
       - name: Build and push
+        id: push
         env:
           BUILD_CONTEXT: ${{ inputs.context }}
           BUILD_DOCKERFILE: ${{ inputs.dockerfile }}
@@ -130,12 +143,17 @@ jobs:
           IMAGE_TAG: ${{ steps.meta.outputs.stamp }}
           NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
           GO_MODULE_TOKEN: ${{ secrets.GO_MODULE_TOKEN }}
+          PUB_TOKEN: ${{ secrets.PUB_TOKEN }}
+          GITEA_TOKEN: ${{ secrets.GITEA_TOKEN }}
           PLATFORMS: ${{ inputs.platforms }}
+          SOURCE_SHA: ${{ gitea.sha }}
         run: |
           set -euo pipefail
           cd "$GITHUB_WORKSPACE"
 
           builder="gitea-${GITHUB_RUN_ID:-manual}-${GITHUB_RUN_ATTEMPT:-0}"
+          metadata_file="${RUNNER_TEMP}/docker-build-metadata.json"
+          repository="registry.bk.glpx.pro/${IMAGE_NAME}"
           docker buildx inspect "$builder" >/dev/null 2>&1 || docker buildx create --name "$builder" --use
           docker buildx use "$builder"
 
@@ -163,6 +181,10 @@ jobs:
           if [ -n "${GO_MODULE_TOKEN}" ]; then
             secret_args+=(--secret "id=go_module_token,env=GO_MODULE_TOKEN")
           fi
+          if [ -n "${PUB_TOKEN}" ]; then
+            secret_args+=(--secret "id=pub_token,env=PUB_TOKEN")
+          fi
+          secret_args+=(--secret "id=gitea_token,env=GITEA_TOKEN")
 
           # We push exactly ONE tag: `:<stamp>` (YYYYMMDDHHMMSS-<sha7>), the
           # immutable tag GitOps charts reference and Renovate auto-bumps. The
@@ -186,4 +208,28 @@ jobs:
             --tag "registry.bk.glpx.pro/${IMAGE_NAME}:${IMAGE_TAG}" \
             --cache-from "type=registry,ref=registry.bk.glpx.pro/${IMAGE_NAME}:buildcache" \
             --cache-to "type=registry,ref=registry.bk.glpx.pro/${IMAGE_NAME}:buildcache,mode=max" \
+            --metadata-file "$metadata_file" \
             "$BUILD_CONTEXT"
+
+          digest="$(jq -r '."containerimage.digest" // empty' "$metadata_file")"
+          if ! printf '%s' "$digest" | grep -Eq '^sha256:[0-9a-f]{64}$'; then
+            echo "BuildKit did not return a valid containerimage.digest." >&2
+            exit 1
+          fi
+          reference="${repository}@${digest}"
+          {
+            echo "digest=${digest}"
+            echo "reference=${reference}"
+          } >> "$GITHUB_OUTPUT"
+
+          {
+            echo "## Container release receipt"
+            echo
+            echo "| Field | Value |"
+            echo "| --- | --- |"
+            echo "| Repository | \`${repository}\` |"
+            echo "| Tag | \`${IMAGE_TAG}\` |"
+            echo "| Digest | \`${digest}\` |"
+            echo "| Exact reference | \`${reference}\` |"
+            echo "| Source commit | \`${SOURCE_SHA}\` |"
+          } >> "$GITHUB_STEP_SUMMARY"

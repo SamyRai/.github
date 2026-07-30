@@ -1,25 +1,22 @@
 name: Reusable Flutter CI
 
-# Quality gate for Flutter projects: format check, analyze, optional custom_lint,
-# tests, and an optional web build. Mirrors the other stack reusable workflows
-# (deno-ci/go-ci/node-ci). It does NOT build or push a container image — that is
-# the job of the reusable docker-ci.yml, called from a repo's own ship workflow
-# on push to main (see docs/flutter-web deploy). Keeping quality here and the
-# image build there matches the backend split (ci gates in PR workflows, image
-# build in docker-build.yml).
+# Quality gate for Flutter projects: locked resolution, format, strict analysis,
+# tests, and an optional web build. Container publication remains owned by
+# docker-ci.yml and must depend on this job in the caller, so a failing quality
+# lane can never publish an image.
 on:
   workflow_call:
     inputs:
       flutter-version:
-        description: 'Flutter SDK version to pin (ignored when flutter-version-file is set).'
-        required: false
-        type: string
-        default: '3.41.2'
-      flutter-version-file:
-        description: 'Path to a version file (e.g. .fvmrc) to read the SDK version from. Takes precedence over flutter-version when non-empty.'
+        description: 'Flutter SDK version to pin when flutter-version-file is empty.'
         required: false
         type: string
         default: ''
+      flutter-version-file:
+        description: 'Path to the repository-owned SDK version file. Set to an empty string only when flutter-version is explicitly pinned.'
+        required: false
+        type: string
+        default: '.fvmrc'
       channel:
         description: 'Flutter channel.'
         required: false
@@ -41,7 +38,7 @@ on:
         type: boolean
         default: true
       build-web:
-        description: 'Run `flutter build web --release` on push events, to catch web-build breakage early. The artifact is not published here (the ship workflow rebuilds it inside the image).'
+        description: 'Run `flutter build web --release` on every event. The artifact is not published here; the gated ship job rebuilds it inside the image.'
         required: false
         type: boolean
         default: true
@@ -50,6 +47,15 @@ on:
         required: false
         type: string
         default: '.'
+      pub-registry-url:
+        description: 'Private Pub hosted URL. Leave empty when the project uses only public or Git/path dependencies.'
+        required: false
+        type: string
+        default: ''
+    secrets:
+      PUB_TOKEN:
+        required: false
+        description: 'Private Pub read token. Required when pub-registry-url is set.'
 
 permissions:
   contents: read
@@ -66,18 +72,31 @@ jobs:
         working-directory: ${{ inputs.working-directory }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
 
       - name: Set up Flutter
-        uses: subosito/flutter-action@v2
+        uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2.23.0
         with:
           channel: ${{ inputs.channel }}
           flutter-version: ${{ inputs.flutter-version-file == '' && inputs.flutter-version || '' }}
           flutter-version-file: ${{ inputs.flutter-version-file }}
           cache: true
 
+      - name: Authenticate to private Pub registry
+        if: inputs.pub-registry-url != ''
+        env:
+          PUB_REGISTRY_URL: ${{ inputs.pub-registry-url }}
+          PUB_TOKEN: ${{ secrets.PUB_TOKEN }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$PUB_TOKEN"
+          dart pub token add "$PUB_REGISTRY_URL" --env-var PUB_TOKEN
+
       - name: Install dependencies
-        run: flutter pub get
+        run: flutter pub get --enforce-lockfile
 
       - name: Verify (custom command)
         if: inputs.verify-command != ''
@@ -89,7 +108,7 @@ jobs:
 
       - name: Analyze
         if: inputs.verify-command == ''
-        run: flutter analyze
+        run: flutter analyze --fatal-infos --fatal-warnings
 
       - name: Custom lint
         if: inputs.verify-command == '' && inputs.custom-lint
@@ -99,6 +118,6 @@ jobs:
         if: inputs.verify-command == ''
         run: flutter test --no-pub --coverage
 
-      - name: Build web (catch breakage early)
-        if: inputs.build-web && gitea.event_name == 'push'
-        run: flutter build web --release
+      - name: Build web
+        if: inputs.build-web
+        run: flutter build web --release --no-pub

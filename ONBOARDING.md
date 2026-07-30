@@ -40,7 +40,8 @@ Gitea UI) are:
 |---|---|---|
 | `NPM_TOKEN` | `deno-ci`, `node-ci`, `npm-publish`, `docker-ci` (build-time) | `secret/baikonur/registry/npm-reader` |
 | `REGISTRY_USERNAME` / `REGISTRY_PASSWORD` | `docker-ci`, `compose-ci`, `release` | Harbor robot `robot$renovate-reader` |
-| `GITEA_TOKEN` | `docker-ci` (custom checkout), `release` (GoReleaser) | per-repo or user PAT |
+| `GITEA_TOKEN` | `docker-ci` (custom checkout and BuildKit secret `id=gitea_token` for private Git dependencies), `release` (GoReleaser) | per-repo or user PAT |
+| `PUB_TOKEN` | `flutter-ci` and `docker-ci` when a Flutter app resolves private hosted Pub packages (`id=pub_token` inside BuildKit) | least-privilege `read:package` PAT |
 | `DOCKERHUB_USERNAME` / `DOCKERHUB_TOKEN` | `docker-ci` (optional, upstream rate-limit headroom) | — |
 | `MODULE_READ_TOKEN` | `go-ci`, `go-integration-ci` (optional; only repos importing private `go.glpx.pro/*` modules) | `secret/baikonur/registry/gdk-module-reader` |
 | `GO_MODULE_TOKEN` | `docker-ci` (optional; only Dockerfiles that themselves run `go mod download`) | `secret/baikonur/registry/gdk-module-reader` |
@@ -105,6 +106,7 @@ instead — that would repair CI by breaking every developer's SSH workflow.
 | Python | [`templates/ci/python.yml`](./templates/ci/python.yml) | `python-ci.yml` |
 | Rust | [`templates/ci/rust.yml`](./templates/ci/rust.yml) | `rust-ci.yml` |
 | Docker (image only) | [`templates/ci/docker.yml`](./templates/ci/docker.yml) | `docker-ci.yml` |
+| Flutter web (quality + image) | [`templates/ci/flutter-web.yml`](./templates/ci/flutter-web.yml) | `flutter-ci.yml` + `docker-ci.yml` |
 
 ## Onboarding steps
 
@@ -139,6 +141,9 @@ After the first green run on `main`:
 - (If Docker) `registry.bk.glpx.pro/<image>:<timestamp>-<sha7>` exists in Harbor, and a
   Renovate PR bumping the GitOps values tag opens within the next scheduled window (4x/day,
   off-peak Europe/Berlin).
+- The Docker job summary contains a release receipt with the tag, manifest
+  digest, exact `repository@sha256:...` reference, and source commit. Preserve
+  that receipt for a manual digest-pinned promotion.
 
 ## Troubleshooting
 

@@ -1,0 +1,48 @@
+# Consumer CI — Flutter web app: locked quality gate on every change, then one
+# immutable Harbor image on the default branch.
+# Drop into <repo>/.gitea/workflows/ci.yml and remove this header comment.
+#
+# CHANGEME: set IMAGE_NAME below to the Harbor image path (e.g. glpx/app-web).
+name: CI
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+    branches: [main, master]
+
+permissions:
+  contents: read
+
+jobs:
+  flutter:
+    uses: mukimovd/.github/.gitea/workflows/flutter-ci.yml@main
+    with:
+      flutter-version-file: .fvmrc
+      build-web: true
+      # Set this when the app consumes private hosted Pub packages.
+      # pub-registry-url: https://gitea.bk.glpx.pro/api/packages/glpx/pub/
+    secrets:
+      PUB_TOKEN: ${{ secrets.PUB_TOKEN }}
+
+  base-images:
+    uses: mukimovd/.github/.gitea/workflows/base-images-guard.yml@main
+    with:
+      paths: Dockerfile.web
+
+  docker:
+    if: gitea.ref == 'refs/heads/main' || gitea.ref == 'refs/heads/master'
+    needs: [flutter, base-images]
+    uses: mukimovd/.github/.gitea/workflows/docker-ci.yml@main
+    with:
+      image-name: glpx/CHANGEME
+      dockerfile: Dockerfile.web
+    secrets:
+      REGISTRY_USERNAME: ${{ secrets.REGISTRY_USERNAME }}
+      REGISTRY_PASSWORD: ${{ secrets.REGISTRY_PASSWORD }}
+      GITEA_TOKEN: ${{ secrets.GITEA_TOKEN }}
+      PUB_TOKEN: ${{ secrets.PUB_TOKEN }}
+      # No NPM_TOKEN or GO_MODULE_TOKEN: the Flutter build resolves Pub/Git
+      # dependencies, not private npm or Go modules.
+      # No DOCKERHUB_USERNAME/DOCKERHUB_TOKEN: both bases use Harbor's
+      # dockerhub-proxy; add them only if a project intentionally pulls direct.

@@ -22,12 +22,13 @@ This directory contains the global reusable workflow templates for Gitea Actions
 | `rust-ci.yml` | Rust | fmt, clippy `-D warnings`, workspace test. |
 | `ruby-ci.yml` | Ruby | rubocop + rspec/rails test (fail-loud). |
 | `hugo-ci.yml` | Hugo | extended build with `--gc --minify`, submodules. |
+| `flutter-ci.yml` | Flutter | SDK from `.fvmrc`, optional private-Pub authentication, enforced lockfile, strict analysis, tests, optional web build. |
 
 ### Build / deploy workflows
 
 | Workflow | Purpose |
 |---|---|
-| `docker-ci.yml` | **Canonical** Docker build/push. Pushes one immutable `YYYYMMDDHHMMSS-<sha7>` tag; Renovate auto-bumps GitOps values on green. |
+| `docker-ci.yml` | **Canonical** Docker build/push. Pushes one immutable `YYYYMMDDHHMMSS-<sha7>` tag and emits a tag+digest release receipt; Renovate auto-bumps tag-managed GitOps values on green. |
 | `compose-ci.yml` | Bring up a compose stack, run e2e/integration, tear down. Two models: `exit-from` or `test-command`. |
 | `deno-compile.yml` | Cross-compile Deno binaries (5 targets). |
 | `deno-publish-jsr.yml` | Publish to JSR via `deno publish` (OIDC). |

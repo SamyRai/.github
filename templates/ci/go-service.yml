@@ -37,6 +37,7 @@ jobs:
       REGISTRY_USERNAME: ${{ secrets.REGISTRY_USERNAME }}
       REGISTRY_PASSWORD: ${{ secrets.REGISTRY_PASSWORD }}
       GITEA_TOKEN: ${{ secrets.GITEA_TOKEN }}
+      # PUB_TOKEN is intentionally omitted: Go services do not resolve Pub.
       # Uncomment if the Dockerfile runs `go install` for @glpx npm-linked tooling
       # or `npm install` for @glpx packages:
       # NPM_TOKEN: ${{ secrets.NPM_TOKEN }}

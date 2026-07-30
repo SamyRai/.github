@@ -1,12 +1,11 @@
 # Enforces the BASE_IMAGES.md policy across Dockerfiles, docker-compose files, and Helm
 # values in repos that consume this reusable workflow. Fails loudly on:
 #   - floating upstream tags (:latest, unpinned :alpine/:bookworm)
-#   - upstream images that SHOULD be sourced from the Harbor mirror but aren't
+#   - Docker Hub images that SHOULD be sourced through Harbor but aren't
 #   - Python runtime pins at 3.14+ (fleet-wide restriction, matches renovate.json)
 #
-# This is the CI-side enforcement of BASE_IMAGES.md's "Drift to fix (Epic C)" list.
-# The durable fix is the Harbor proxy-cache (see BASE_IMAGES.md "Recommended improvement");
-# this guard prevents new drift from landing while that work is pending.
+# Harbor's dockerhub-proxy project is live. Curated historical bases under
+# library/ remain valid; new Docker Hub bases should use dockerhub-proxy.
 #
 # Callers reference: mukimovd/.github/.gitea/workflows/base-images-guard.yml@main
 name: Reusable Base-Images Guard
@@ -27,18 +26,19 @@ jobs:
   base-images-guard:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
 
       - name: Scan for base-image drift
         shell: bash
         run: |
           set -euo pipefail
 
-          # Images that MUST come from the curated Harbor mirror when used at all.
-          # Add entries here as the library/ project grows (see BASE_IMAGES.md).
+          # Docker Hub images that MUST be pulled through Harbor when used.
           declare -a must_mirror=(
-            "golang" "alpine" "nginx" "python" "node" "denoland/deno"
-            "rust" "buildkit" "temporal"
+            "golang" "alpine" "debian" "nginx" "nginxinc/nginx-unprivileged"
+            "python" "node" "denoland/deno" "rust" "buildkit" "temporal"
           )
 
           # Floating tags that are never allowed anywhere.
@@ -89,16 +89,15 @@ jobs:
                 fi
               done
 
-              # 2. Must-mirror images used WITHOUT the curated library/ mirror prefix.
-              #    Accept only registry.bk.glpx.pro/library/<image>; other Harbor paths
-              #    (e.g. registry.bk.glpx.pro/glpx/<app>) are app images, not base images.
-              if ! printf '%s' "$image_ref" | grep -q '^registry\.bk\.glpx\.pro/library/'; then
+              # 2. Must-mirror Docker Hub images used without either supported
+              #    Harbor source. `library/` is the curated historical mirror;
+              #    `dockerhub-proxy/` is the pull-through cache for new bases.
+              if ! printf '%s' "$image_ref" | grep -Eq '^registry\.bk\.glpx\.pro/(library|dockerhub-proxy)/'; then
                 base=$(printf '%s' "$image_ref" | cut -d: -f1 | sed 's|^library/||')
                 for m in "${must_mirror[@]}"; do
                   if [ "$base" = "$m" ] || [ "$base" = "library/$m" ]; then
-                    echo "✗ DRIFT: $f uses '$image_ref' directly instead of the Harbor mirror."
-                    echo "         Replace with: registry.bk.glpx.pro/library/$m:<pinned-version>"
-                    echo "         (If not in the mirror yet, push it once — see BASE_IMAGES.md rule 3.)"
+                    echo "✗ DRIFT: $f uses '$image_ref' directly instead of Harbor."
+                    echo "         Replace with: registry.bk.glpx.pro/dockerhub-proxy/$m:<pinned-version>"
                     drift=1
                   fi
                 done
@@ -109,7 +108,6 @@ jobs:
           if [ "$drift" -ne 0 ]; then
             echo
             echo "Base-image drift detected. See BASE_IMAGES.md in mukimovd/.github for the policy."
-            echo "The durable fix (Harbor proxy-cache) is tracked as Epic C."
             exit 1
           fi
 
