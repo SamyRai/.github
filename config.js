@@ -117,6 +117,18 @@ module.exports = {
       // resolve that module and left go.sum untouched, so every Renovate PR in
       // a kit that imports a sibling failed CI on a *public* module's "missing
       // go.sum entry" — a misleading symptom of this one missing credential.
+      //
+      // A host-only matchHost IS sufficient, despite the ssh:// clone URLs
+      // carrying port 2222. Renovate derives its git `insteadOf` directive from
+      // matchHost and therefore emits it without a port, which looks like it
+      // would fail to match — but git resolves insteadOf structurally, not by
+      // naive string prefix, so `ssh://git@gitea.bk.glpx.pro/` does rewrite
+      // `ssh://git@gitea.bk.glpx.pro:2222/...`. Verified 2026-07-30 with
+      // `git ls-remote` under GIT_CONFIG_KEY_0/VALUE_0 both with and without the
+      // port: both fetch. Do NOT add hand-rolled GIT_CONFIG_* entries to
+      // customEnvVariables to "fix" the port — they are unnecessary, and
+      // customEnvVariables overrides Renovate's generated git env, so doing so
+      // means owning the entire set for every host.
       matchHost: "gitea.bk.glpx.pro",
       ...(process.env.RENOVATE_TOKEN && { token: process.env.RENOVATE_TOKEN }),
     },
