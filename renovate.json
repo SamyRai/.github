@@ -214,6 +214,19 @@
       "matchStrings": [
         "repository:\\s*[\"']?(?<depName>registry\\.bk\\.glpx\\.pro/[^\\s\"']+)[\"']?[\\s\\S]*?tag:\\s*[\"']?(?<currentValue>[^\\s\"']+)[\"']?"
       ]
+    },
+    {
+      "description": "Keep SHA-pinned references to this repo's reusable workflows up to date. Renovate's github-actions manager detects .gitea/workflows files but extracts NOTHING from `uses: mukimovd/.github/...`, because it assumes github.com and cannot resolve a self-hosted Gitea workflow ref — verified on mukimovd/gdk-mcp, whose dashboard lists the file with zero dependencies. That makes an unmanaged SHA pin a trap rather than a safety measure: go-agent pinned docker-ci.yml at 335b230f and sat 8 commits / 12 days stale, silently missing every fix. This manager resolves the pin against main's head via git-refs so a pinned consumer gets a reviewable bump PR instead of freezing. Inert for repos still on @main.",
+      "customType": "regex",
+      "managerFilePatterns": [
+        "/^\\.gitea/workflows/.+\\.ya?ml$/"
+      ],
+      "datasourceTemplate": "git-refs",
+      "depNameTemplate": "https://gitea.bk.glpx.pro/mukimovd/.github",
+      "currentValueTemplate": "main",
+      "matchStrings": [
+        "uses:\\s*mukimovd/\\.github/\\.gitea/workflows/[\\w.-]+@(?<currentDigest>[0-9a-f]{40})"
+      ]
     }
   ]
 }
