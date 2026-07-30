@@ -45,6 +45,45 @@ Gitea UI) are:
 
 See [`.gitea/README.md`](./.gitea/README.md) § Secrets Strategy for the full rationale.
 
+## Private Go modules (`go.glpx.pro/*`)
+
+The `gdk-*` kits are private Gitea repositories published under the `go.glpx.pro`
+vanity path. Two things are needed to consume them, and `go-ci.yml` /
+`go-integration-ci.yml` handle both:
+
+1. **`GOPRIVATE=go.glpx.pro/*`** — set in the reusable workflow. Without it, Go
+   goes to `proxy.golang.org` and the public checksum database and fails with a
+   sum mismatch rather than an obvious "private repository" error.
+2. **`MODULE_READ_TOKEN`** — a Gitea token with `read:repository` scope. Discovery
+   returns an `ssh://` clone URL, which works for a developer (their key is
+   loaded) but not for a runner. The workflow rewrites it to
+   token-authenticated https **for CI only**, via
+   `git config --global url.<https>.insteadOf <ssh>`, leaving the vanity metadata
+   and every developer's SSH workflow untouched.
+
+Pass it through from a caller that needs it:
+
+```yaml
+jobs:
+  go-ci:
+    uses: mukimovd/.github/.gitea/workflows/go-ci.yml@main
+    secrets:
+      MODULE_READ_TOKEN: ${{ secrets.MODULE_READ_TOKEN }}
+```
+
+The secret is **optional**: a repo with no private module dependencies can omit
+it, and the step logs a warning and skips rather than configuring a broken
+credential. Install it with `glpxctl` rather than by hand so the value comes
+from Vault and is never printed:
+
+```bash
+glpxctl secret set <owner>/<repo> MODULE_READ_TOKEN \
+  --from-vault baikonur/registry/gdk-module-reader --allow-runtime-write
+```
+
+Do **not** "fix" a fetch failure by making the vanity server advertise `https://`
+instead — that would repair CI by breaking every developer's SSH workflow.
+
 ## Pick a template
 
 | Stack | Template | Reusable workflow it calls |
@@ -103,3 +142,8 @@ After the first green run on `main`:
   one immutable tag; if you hit this you're on a custom lane. Switch to `docker-ci.yml`.
 - **`go test -race` aborts on arm64** — expected on the RPi runners (39-bit VMA). `go-ci.yml`
   already gates `-race` on `GOARCH==amd64`; if you hit this you've forked the race step.
+- **`fatal: Could not read from remote repository` fetching a `go.glpx.pro/*` module** —
+  `MODULE_READ_TOKEN` is unset. The kits are private, and `go.glpx.pro` discovery returns an
+  `ssh://` clone URL: correct for a developer whose key is loaded, impossible for a runner.
+  `go-ci.yml` rewrites it to token-authenticated https, but only when the secret exists.
+  See § Private Go modules above.

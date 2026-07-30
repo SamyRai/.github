@@ -7,6 +7,13 @@ on:
         required: false
         type: string
         default: '1.26'
+    secrets:
+      MODULE_READ_TOKEN:
+        description: >-
+          Gitea token with read:repository scope, used to fetch private
+          go.glpx.pro/* modules. Optional: repos with no private module
+          dependencies can omit it.
+        required: false
 
 concurrency:
   group: ${{ gitea.workflow }}-${{ gitea.head_ref || gitea.ref }}
@@ -17,6 +24,10 @@ permissions:
 
 env:
   GOTOOLCHAIN: local
+  # Keep the private module namespace off proxy.golang.org and the public
+  # checksum database. Without this, resolution fails with a confusing sum
+  # mismatch rather than an obvious "private repository" error.
+  GOPRIVATE: 'go.glpx.pro/*'
 
 jobs:
   test:
@@ -41,6 +52,23 @@ jobs:
         key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
         restore-keys: |
           ${{ runner.os }}-go-
+
+    - name: Configure private Go module access
+      # go.glpx.pro discovery returns an ssh:// clone URL. That is right for
+      # humans, whose keys are loaded, but a runner has none -- the fetch dies
+      # with "fatal: Could not read from remote repository". Rewrite to
+      # token-authenticated https for CI only, leaving the vanity metadata and
+      # every developer's SSH workflow untouched.
+      env:
+        MODULE_READ_TOKEN: ${{ secrets.MODULE_READ_TOKEN }}
+      run: |
+        if [ -n "$MODULE_READ_TOKEN" ]; then
+          git config --global \
+            url."https://$MODULE_READ_TOKEN@gitea.bk.glpx.pro/".insteadOf \
+            "ssh://git@gitea.bk.glpx.pro:2222/"
+        else
+          echo "::warning::MODULE_READ_TOKEN unset; private go.glpx.pro modules cannot be fetched"
+        fi
 
     - name: Download dependencies
       run: go mod download
