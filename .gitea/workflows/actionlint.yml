@@ -24,11 +24,21 @@ jobs:
       # the job container to sidestep that. Note: actionlint defaults to scanning
       # .github/workflows, so point it at .gitea/workflows explicitly.
       - name: Run actionlint
+        # ACTIONLINT_VERSION is pinned deliberately. The download script is
+        # fetched from actionlint's main branch and installs the LATEST release
+        # by default, so a new upstream release can turn this job red with no
+        # change in this repo — which is exactly what happened: v1.7.12 began
+        # rejecting the self-hosted `generic` label and the job failed on every
+        # run from 2026-06 onward. The label is now declared in
+        # .github/actionlint.yaml; the pin makes the next such change a
+        # deliberate edit rather than a surprise.
+        env:
+          ACTIONLINT_VERSION: '1.7.12'
         run: |
           set -euo pipefail
           curl -sSfL -o /tmp/dl-actionlint.bash \
             https://raw.githubusercontent.com/rhysd/actionlint/main/scripts/download-actionlint.bash
-          bash /tmp/dl-actionlint.bash
+          bash /tmp/dl-actionlint.bash "$ACTIONLINT_VERSION"
           # actionlint only models GitHub Actions; the -ignore rules below suppress
           # Gitea-specific false positives (no real bugs as of 2026-06-23):
           #  - 'gitea' context: the Gitea-recommended form; github.* is just an alias.
@@ -36,10 +46,17 @@ jobs:
           #  - SC2015: intentional `A && B || C` install fallbacks.
           #  - SC2193: false positive — actionlint replaces matrix expressions with a
           #    fixed placeholder, so shellcheck wrongly sees a constant comparison.
+          #  - permission scope "releases": a real Gitea scope with no GitHub
+          #    equivalent, used by release.yml. actionlint only knows GitHub's set.
+          # Self-hosted runner labels (`generic`) are declared in
+          # .github/actionlint.yaml rather than ignored, so a genuinely misspelled
+          # label is still caught.
           find .gitea/workflows -type f \( -name '*.yml' -o -name '*.yaml' \) -print0 \
             | xargs -0 ./actionlint -color \
+                -config-file .github/actionlint.yaml \
                 -ignore 'undefined variable "gitea"' \
                 -ignore 'context "secrets" is not allowed here' \
+                -ignore 'unknown permission scope "releases"' \
                 -ignore 'SC2015' \
                 -ignore 'SC2193'
 

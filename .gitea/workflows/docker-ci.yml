@@ -150,11 +150,18 @@ jobs:
           done <<< "$BUILD_ALLOW"
 
           secret_args=()
+          # Quoted deliberately: the comma is required `--secret id=X,env=Y`
+          # BuildKit syntax — one argument, not two array elements. Unquoted, the
+          # linter reads it as SC2054 ("use spaces, not commas") and fails the
+          # actionlint gate. Quoting is a no-op at runtime (no whitespace or
+          # globs) and states the intent.
+          # (Careful: a comment line beginning with the linter's own name is
+          # parsed as a directive and errors with SC1072.)
           if [ -n "${NPM_TOKEN}" ]; then
-            secret_args+=(--secret id=glpx_npm_token,env=NPM_TOKEN)
+            secret_args+=(--secret "id=glpx_npm_token,env=NPM_TOKEN")
           fi
           if [ -n "${GO_MODULE_TOKEN}" ]; then
-            secret_args+=(--secret id=go_module_token,env=GO_MODULE_TOKEN)
+            secret_args+=(--secret "id=go_module_token,env=GO_MODULE_TOKEN")
           fi
 
           # We push exactly ONE tag: `:<stamp>` (YYYYMMDDHHMMSS-<sha7>), the
