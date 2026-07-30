@@ -42,6 +42,15 @@ Gitea UI) are:
 | `REGISTRY_USERNAME` / `REGISTRY_PASSWORD` | `docker-ci`, `compose-ci`, `release` | Harbor robot `robot$renovate-reader` |
 | `GITEA_TOKEN` | `docker-ci` (custom checkout), `release` (GoReleaser) | per-repo or user PAT |
 | `DOCKERHUB_USERNAME` / `DOCKERHUB_TOKEN` | `docker-ci` (optional, upstream rate-limit headroom) | — |
+| `MODULE_READ_TOKEN` | `go-ci`, `go-integration-ci` (optional; only repos importing private `go.glpx.pro/*` modules) | `secret/baikonur/registry/gdk-module-reader` |
+| `GO_MODULE_TOKEN` | `docker-ci` (optional; only Dockerfiles that themselves run `go mod download`) | `secret/baikonur/registry/gdk-module-reader` |
+
+The last two are **different credentials for the same goal** and are easy to
+confuse: `MODULE_READ_TOKEN` is a `read:repository` token used to clone the
+private repos over git, while `GO_MODULE_TOKEN` is a `read:package` token for the
+Gitea Go module registry. A repo needs whichever matches how it fetches — the
+reusable Go workflows use the former; a Dockerfile doing its own `go mod
+download` uses the latter. See § Private Go modules below.
 
 See [`.gitea/README.md`](./.gitea/README.md) § Secrets Strategy for the full rationale.
 

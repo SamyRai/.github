@@ -42,3 +42,11 @@ jobs:
                 -ignore 'context "secrets" is not allowed here' \
                 -ignore 'SC2015' \
                 -ignore 'SC2193'
+
+      # actionlint validates each file in isolation, so it cannot see that a
+      # reusable workflow gained a secret its consumer templates never surfaced.
+      # That is how MODULE_READ_TOKEN ended up declared by go-ci.yml but absent
+      # from all three Go templates: nothing failed here, and the secret is
+      # optional, so the breakage only appeared in a downstream repo's CI.
+      - name: Verify CI templates account for every declared secret
+        run: python3 scripts/verify-ci-template-secrets.py

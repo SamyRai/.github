@@ -16,6 +16,10 @@ permissions:
 jobs:
   go-ci:
     uses: mukimovd/.github/.gitea/workflows/go-ci.yml@main
+    secrets:
+      # Only needed if this repo imports private go.glpx.pro/* modules (the
+      # gdk-* kits). Harmless when unset: go-ci.yml warns and skips.
+      MODULE_READ_TOKEN: ${{ secrets.MODULE_READ_TOKEN }}
 
   base-images:
     uses: mukimovd/.github/.gitea/workflows/base-images-guard.yml@main
@@ -36,6 +40,11 @@ jobs:
       # Uncomment if the Dockerfile runs `go install` for @glpx npm-linked tooling
       # or `npm install` for @glpx packages:
       # NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+      # Uncomment if the Dockerfile itself runs `go mod download` for private
+      # go.glpx.pro/* modules. Distinct from the MODULE_READ_TOKEN forwarded to
+      # go-ci.yml above: that is a read:repository token for cloning over git,
+      # this is a read:package token for the Gitea Go module registry.
+      # GO_MODULE_TOKEN: ${{ secrets.GO_MODULE_TOKEN }}
       # Optional: uncomment to authenticate upstream Docker Hub pulls.
       # DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
       # DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
