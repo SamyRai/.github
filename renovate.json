@@ -68,6 +68,17 @@
       "minimumReleaseAge": "7 days"
     },
     {
+      "description": "How to update Go modules, for EVERY update type. Kept separate from the automerge rule below so a major bump still gets a tidied go.sum: gomodTidy was previously scoped to patch/minor, which left major PRs with a stale go.sum that fails CI on the first missing entry. gomodMassage ignores `replace` directives while tidying, which matters for kits developed against sibling checkouts. constraintsFiltering respects each repo's `go` directive instead of proposing versions it cannot compile.",
+      "matchManagers": [
+        "gomod"
+      ],
+      "postUpdateOptions": [
+        "gomodTidy",
+        "gomodMassage"
+      ],
+      "constraintsFiltering": "strict"
+    },
+    {
       "description": "Automerge low-risk Go patch/minor updates",
       "matchManagers": [
         "gomod"
@@ -75,9 +86,6 @@
       "matchUpdateTypes": [
         "patch",
         "minor"
-      ],
-      "postUpdateOptions": [
-        "gomodTidy"
       ],
       "groupName": "go non-major dependencies",
       "groupSlug": "go-non-major",

@@ -96,7 +96,45 @@ module.exports = {
       hostType: "npm",
       ...(process.env.RENOVATE_TOKEN && { token: process.env.RENOVATE_TOKEN }),
     },
+    {
+      // Auth for the private go.glpx.pro/* Go modules (the gdk-* kits), which
+      // live in private Gitea repos. Deliberately has NO hostType, unlike the
+      // npm rule above: a rule with both matchHost AND hostType only matches
+      // that type, and the private Go modules need TWO different request paths
+      // to be authenticated:
+      //
+      //   1. Version lookup. go.glpx.pro discovery returns an ssh:// clone URL,
+      //      which Renovate resolves through the `git-tags` datasource — so the
+      //      rule has to match hostType "git-tags", not "npm" or "go".
+      //   2. `go mod tidy` (postUpdateOptions.gomodTidy in renovate.json). The
+      //      gomod manager turns credential-bearing hostRules into git
+      //      `insteadOf` env directives, but only for rules with no hostType,
+      //      hostType "go", or a platform hostType.
+      //
+      // Before this rule existed, the lookup ran anonymous against a private
+      // repo and the dependency dashboard reported "Failed to look up go
+      // package go.glpx.pro/gdk-httpclient: no-result". gomodTidy then failed to
+      // resolve that module and left go.sum untouched, so every Renovate PR in
+      // a kit that imports a sibling failed CI on a *public* module's "missing
+      // go.sum entry" — a misleading symptom of this one missing credential.
+      matchHost: "gitea.bk.glpx.pro",
+      ...(process.env.RENOVATE_TOKEN && { token: process.env.RENOVATE_TOKEN }),
+    },
   ],
+
+  // Go env for the private module namespace, mirroring what the reusable
+  // go-ci.yml already sets for CI. The gomod manager forwards exactly GOPROXY,
+  // GOPRIVATE, GONOPROXY, GONOSUMDB, GOSUMDB and GOINSECURE into the
+  // `go mod tidy` child process, so these are the levers available here.
+  //
+  // Without them, `go mod tidy` consults proxy.golang.org and the public
+  // checksum database for go.glpx.pro/* and fails with a confusing sum
+  // mismatch rather than an obvious "private repository" error.
+  customEnvVariables: {
+    GOPRIVATE: "go.glpx.pro/*",
+    GONOSUMDB: "go.glpx.pro/*",
+    GONOPROXY: "go.glpx.pro/*",
+  },
 
   onboardingConfig: {
     extends: ["config:recommended", ":configMigration"],
