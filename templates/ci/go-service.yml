@@ -16,6 +16,10 @@ permissions:
 jobs:
   go-ci:
     uses: mukimovd/.github/.gitea/workflows/go-ci.yml@main
+    # with:
+    #   # Set when go.mod is not at the checkout root, e.g. a workspace repo
+    #   # with the service under ./my-service (see mukimovd/smm-hub).
+    #   working-directory: ./my-service
     secrets:
       # Only needed if this repo imports private go.glpx.pro/* modules (the
       # gdk-* kits). Harmless when unset: go-ci.yml warns and skips.

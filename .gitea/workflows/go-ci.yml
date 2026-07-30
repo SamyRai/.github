@@ -7,6 +7,16 @@ on:
         required: false
         type: string
         default: '1.26'
+      working-directory:
+        description: >-
+          Directory holding go.mod, for repos whose module is not at the
+          checkout root (e.g. a workspace repo with the service under
+          ./my-service). Defaults to the root, so existing callers are
+          unaffected. Only `run:` steps are relocated; the module cache key
+          still globs **/go.sum repo-wide, which is correct either way.
+        required: false
+        type: string
+        default: '.'
     secrets:
       MODULE_READ_TOKEN:
         description: >-
@@ -37,6 +47,9 @@ jobs:
     # The GOARCH gate on `-race` below is kept as defence-in-depth (TSan needs a 48-bit VA,
     # which the RPi 39-bit kernel lacks) for the rare explicit `runs-on: arm64` Go job.
     runs-on: generic
+    defaults:
+      run:
+        working-directory: ${{ inputs.working-directory }}
     steps:
     - uses: actions/checkout@v7
 
