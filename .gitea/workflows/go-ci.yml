@@ -49,6 +49,9 @@ permissions:
 
 env:
   GOTOOLCHAIN: local
+  # Release gates validate the module exactly as external consumers resolve it;
+  # a repository-local go.work must never hide missing version requirements.
+  GOWORK: 'off'
   # Keep the private module namespace off proxy.golang.org and the public
   # checksum database. Without this, resolution fails with a confusing sum
   # mismatch rather than an obvious "private repository" error.
