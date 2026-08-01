@@ -15,7 +15,7 @@ permissions:
 
 jobs:
   go-ci:
-    uses: mukimovd/.github/.gitea/workflows/go-ci.yml@43a9756c3c5bf750b7d68aecbaea49cecc010fe7
+    uses: mukimovd/.github/.gitea/workflows/go-ci.yml@2f407c7d643b4aafa3d72c45e394097fc6de3108
     # with:
     #   # Set when go.mod is not at the checkout root, e.g. a workspace repo
     #   # with the service under ./my-service (see mukimovd/smm-hub).
@@ -26,13 +26,13 @@ jobs:
       MODULE_READ_TOKEN: ${{ secrets.MODULE_READ_TOKEN }}
 
   base-images:
-    uses: mukimovd/.github/.gitea/workflows/base-images-guard.yml@43a9756c3c5bf750b7d68aecbaea49cecc010fe7
+    uses: mukimovd/.github/.gitea/workflows/base-images-guard.yml@2f407c7d643b4aafa3d72c45e394097fc6de3108
 
   # Image build/push only on the default branch (PRs just run go-ci above).
   docker:
     if: gitea.ref == 'refs/heads/main' || gitea.ref == 'refs/heads/master'
     needs: [go-ci, base-images]
-    uses: mukimovd/.github/.gitea/workflows/docker-ci.yml@43a9756c3c5bf750b7d68aecbaea49cecc010fe7
+    uses: mukimovd/.github/.gitea/workflows/docker-ci.yml@2f407c7d643b4aafa3d72c45e394097fc6de3108
     with:
       image-name: glpx/CHANGEME  # e.g. glpx/kb-server
       # context: '.'          # override if Dockerfile lives in a subdir

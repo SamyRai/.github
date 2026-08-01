@@ -35,9 +35,15 @@ WORKFLOWS = REPO / ".gitea" / "workflows"
 
 # `uses: mukimovd/.github/.gitea/workflows/<name>@<ref>`
 USES = re.compile(r"^\s*uses:\s*mukimovd/\.github/\.gitea/workflows/([\w.-]+)@")
-PINNED_USES = re.compile(
-    r"^\s*uses:\s*mukimovd/\.github/\.gitea/workflows/[\w.-]+@([0-9a-f]{40})\s*$"
+WORKFLOW_USE = re.compile(
+    r"^\s*uses:\s*mukimovd/\.github/\.gitea/workflows/([\w.-]+)@([^\s]+)\s*$"
 )
+APPROVED_WORKFLOW_REVISION = "2f407c7d643b4aafa3d72c45e394097fc6de3108"
+EXPECTED_GO_WORKFLOWS = {
+    "go.yml": ["go-ci.yml"],
+    "go-integration.yml": ["go-integration-ci.yml"],
+    "go-service.yml": ["go-ci.yml", "base-images-guard.yml", "docker-ci.yml"],
+}
 SECRET_KEY = re.compile(r"^(\s+)([A-Z][A-Z0-9_]*):\s*$")
 STEP = re.compile(r"(?m)^      - name:\s+")
 
@@ -107,19 +113,56 @@ def verify_pub_token_scope() -> list[str]:
     return failures
 
 
+def verify_template_workflow_pins(name: str, body: str) -> list[str]:
+    """Require the exact reviewed revision and workflow set for one template."""
+    failures: list[str] = []
+    found: list[str] = []
+    for number, line in enumerate(body.splitlines(), start=1):
+        if "uses: mukimovd/.github/.gitea/workflows/" not in line:
+            continue
+        match = WORKFLOW_USE.match(line)
+        if not match:
+            failures.append(
+                f"templates/ci/{name}:{number}: malformed reusable workflow reference"
+            )
+            continue
+        workflow, revision = match.groups()
+        found.append(workflow)
+        if revision != APPROVED_WORKFLOW_REVISION:
+            failures.append(
+                f"templates/ci/{name}:{number}: {workflow} must use reviewed revision "
+                f"{APPROVED_WORKFLOW_REVISION}, got {revision}"
+            )
+
+    expected = EXPECTED_GO_WORKFLOWS[name]
+    if found != expected:
+        failures.append(
+            f"templates/ci/{name}: reusable workflows {found!r}, want {expected!r}"
+        )
+    return failures
+
+
 def verify_go_templates_pin_workflows() -> list[str]:
     """Require reviewed immutable workflow revisions in every Go scaffold."""
     failures: list[str] = []
-    for name in ("go.yml", "go-service.yml", "go-integration.yml"):
+    for name in EXPECTED_GO_WORKFLOWS:
         template = TEMPLATES / name
-        for number, line in enumerate(template.read_text().splitlines(), start=1):
-            if "uses: mukimovd/.github/.gitea/workflows/" not in line:
-                continue
-            if not PINNED_USES.match(line):
-                failures.append(
-                    f"{template.relative_to(REPO)}:{number}: reusable workflow "
-                    "must be pinned to a 40-character reviewed commit"
-                )
+        failures.extend(verify_template_workflow_pins(name, template.read_text()))
+
+    # Mutation guards: the validator must reject an unknown SHA even when it
+    # is 40 hex characters, and must reject a mixed-ref service scaffold.
+    unknown = "0" * 40
+    all_unknown = "\n".join(
+        f"    uses: mukimovd/.github/.gitea/workflows/{workflow}@{unknown}"
+        for workflow in EXPECTED_GO_WORKFLOWS["go-service.yml"]
+    )
+    if not verify_template_workflow_pins("go-service.yml", all_unknown):
+        failures.append("internal verifier accepted an unknown workflow revision")
+
+    mixed = all_unknown.replace(unknown, APPROVED_WORKFLOW_REVISION, 1)
+    if not verify_template_workflow_pins("go-service.yml", mixed):
+        failures.append("internal verifier accepted mixed workflow revisions")
+
     return failures
 
 
