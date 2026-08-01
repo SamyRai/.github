@@ -35,6 +35,9 @@ WORKFLOWS = REPO / ".gitea" / "workflows"
 
 # `uses: mukimovd/.github/.gitea/workflows/<name>@<ref>`
 USES = re.compile(r"^\s*uses:\s*mukimovd/\.github/\.gitea/workflows/([\w.-]+)@")
+PINNED_USES = re.compile(
+    r"^\s*uses:\s*mukimovd/\.github/\.gitea/workflows/[\w.-]+@([0-9a-f]{40})\s*$"
+)
 SECRET_KEY = re.compile(r"^(\s+)([A-Z][A-Z0-9_]*):\s*$")
 STEP = re.compile(r"(?m)^      - name:\s+")
 
@@ -104,6 +107,22 @@ def verify_pub_token_scope() -> list[str]:
     return failures
 
 
+def verify_go_templates_pin_workflows() -> list[str]:
+    """Require reviewed immutable workflow revisions in every Go scaffold."""
+    failures: list[str] = []
+    for name in ("go.yml", "go-service.yml", "go-integration.yml"):
+        template = TEMPLATES / name
+        for number, line in enumerate(template.read_text().splitlines(), start=1):
+            if "uses: mukimovd/.github/.gitea/workflows/" not in line:
+                continue
+            if not PINNED_USES.match(line):
+                failures.append(
+                    f"{template.relative_to(REPO)}:{number}: reusable workflow "
+                    "must be pinned to a 40-character reviewed commit"
+                )
+    return failures
+
+
 def main() -> int:
     if not TEMPLATES.is_dir():
         print(f"error: {TEMPLATES} not found", file=sys.stderr)
@@ -131,6 +150,7 @@ def main() -> int:
                     )
 
     failures.extend(verify_pub_token_scope())
+    failures.extend(verify_go_templates_pin_workflows())
 
     if failures:
         print("CI template / reusable-workflow secret drift:\n", file=sys.stderr)
