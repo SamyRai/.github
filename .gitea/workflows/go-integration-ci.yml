@@ -51,8 +51,6 @@ jobs:
           POSTGRES_DB: testdb
           POSTGRES_USER: testuser
           POSTGRES_PASSWORD: testpassword
-        ports:
-          - 5432:5432
         options: >-
           --health-cmd pg_isready
           --health-interval 10s
@@ -98,7 +96,10 @@ jobs:
 
     - name: Run Integration Tests
       env:
-        DB_HOST: localhost
+        # Gitea act_runner executes the job in a container. Service containers
+        # are reached by their service key on the shared network, not through
+        # the job container's loopback interface.
+        DB_HOST: postgres
         DB_PORT: 5432
         DB_USER: testuser
         DB_PASS: testpassword
@@ -124,6 +125,4 @@ jobs:
       run: go run github.com/securego/gosec/v2/cmd/gosec@${{ inputs.gosec-version }} -quiet ./...
 
     - name: Check go mod tidy
-      run: |
-        go mod tidy
-        git diff --exit-code go.mod go.sum || (echo "go.mod or go.sum is not tidy" && exit 1)
+      run: go mod tidy -diff

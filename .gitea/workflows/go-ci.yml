@@ -145,6 +145,6 @@ jobs:
       run: go run github.com/securego/gosec/v2/cmd/gosec@${{ inputs.gosec-version }} -quiet ./...
 
     - name: Check go mod tidy
-      run: |
-        go mod tidy
-        git diff --exit-code go.mod go.sum || (echo "go.mod or go.sum is not tidy" && exit 1)
+      # -diff is non-mutating and also reports a missing, newly required
+      # go.sum; `git diff` alone cannot see untracked files.
+      run: go mod tidy -diff
