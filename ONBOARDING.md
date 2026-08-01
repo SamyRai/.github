@@ -76,7 +76,7 @@ Pass it through from a caller that needs it:
 ```yaml
 jobs:
   go-ci:
-    uses: mukimovd/.github/.gitea/workflows/go-ci.yml@80da075189d443b09ed5da876feb89929affb336
+    uses: mukimovd/.github/.gitea/workflows/go-ci.yml@8737864c683d8ad5fb3d2fd5802d056b50999782
     secrets:
       MODULE_READ_TOKEN: ${{ secrets.MODULE_READ_TOKEN }}
 ```
