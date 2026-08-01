@@ -7,6 +7,16 @@ on:
         required: false
         type: string
         default: '1.26'
+      staticcheck-version:
+        description: 'Pinned Staticcheck version used by the shared quality gate'
+        required: false
+        type: string
+        default: 'v0.7.0'
+      govulncheck-version:
+        description: 'Pinned govulncheck version used by the shared security gate'
+        required: false
+        type: string
+        default: 'v1.6.0'
     secrets:
       MODULE_READ_TOKEN:
         description: >-
@@ -22,6 +32,8 @@ permissions:
   contents: read
 
 env:
+  GOTOOLCHAIN: local
+  GOWORK: 'off'
   GOPRIVATE: 'go.glpx.pro/*'
 
 jobs:
@@ -42,10 +54,10 @@ jobs:
           --health-timeout 5s
           --health-retries 5
     steps:
-    - uses: actions/checkout@v7
+    - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
     - name: Set up Go
-      uses: actions/setup-go@v6
+      uses: actions/setup-go@4dc6199c7b1a012772edbd06daecab0f50c9053c # v6.1.0
       with:
         go-version: ${{ inputs.go-version }}
 
@@ -63,6 +75,22 @@ jobs:
           echo "::warning::MODULE_READ_TOKEN unset; private go.glpx.pro modules cannot be fetched"
         fi
 
+    - name: Download and verify dependencies
+      run: |
+        go mod download
+        go mod verify
+
+    - name: Check formatting
+      run: |
+        unformatted="$(gofmt -l .)"
+        if [ -n "$unformatted" ]; then
+          echo "$unformatted"
+          exit 1
+        fi
+
+    - name: Build packages
+      run: go build ./...
+
     - name: Run Integration Tests
       env:
         DB_HOST: localhost
@@ -70,4 +98,24 @@ jobs:
         DB_USER: testuser
         DB_PASS: testpassword
         DB_NAME: testdb
-      run: go test -v -tags=integration ./...
+      run: |
+        if [ "$(go env GOARCH)" = "amd64" ]; then
+          go test -v -race -tags=integration ./...
+        else
+          echo "::warning::$(go env GOARCH) runner: running integration tests without -race"
+          go test -v -tags=integration ./...
+        fi
+
+    - name: Run go vet
+      run: go vet ./...
+
+    - name: Run Staticcheck
+      run: go run honnef.co/go/tools/cmd/staticcheck@${{ inputs.staticcheck-version }} ./...
+
+    - name: Scan reachable vulnerabilities
+      run: go run golang.org/x/vuln/cmd/govulncheck@${{ inputs.govulncheck-version }} ./...
+
+    - name: Check go mod tidy
+      run: |
+        go mod tidy
+        git diff --exit-code go.mod go.sum || (echo "go.mod or go.sum is not tidy" && exit 1)
