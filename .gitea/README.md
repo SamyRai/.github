@@ -13,7 +13,7 @@ This directory contains the global reusable workflow templates for Gitea Actions
 
 | Workflow | Stack | Notes |
 |---|---|---|
-| `go-ci.yml` | Go (lib/CLI) | `go test`, vet, `go mod tidy` check. `-race` gated on amd64. |
+| `go-ci.yml` | Go (lib/CLI) | Format, module verification, build, race tests, vet, Staticcheck, govulncheck, and tidy drift. Tool/action revisions are pinned; `-race` is gated on amd64. |
 | `go-integration-ci.yml` | Go + Postgres | Uses a `postgres:18-alpine` service container. |
 | `deno-ci.yml` | Deno | `deno ci`, fmt, lint, task check, task test. Optional `@glpx` npm auth. |
 | `node-ci.yml` | Node | Yarn (corepack) w/ npm fallback. Optional `@glpx` npm auth. |
