@@ -13,7 +13,7 @@ permissions:
 
 jobs:
   go-integration-ci:
-    uses: mukimovd/.github/.gitea/workflows/go-integration-ci.yml@8737864c683d8ad5fb3d2fd5802d056b50999782
+    uses: mukimovd/.github/.gitea/workflows/go-integration-ci.yml@43a9756c3c5bf750b7d68aecbaea49cecc010fe7
     secrets:
       # Only needed if this repo imports private go.glpx.pro/* modules (the
       # gdk-* kits). Harmless when unset: go-ci.yml warns and skips.
