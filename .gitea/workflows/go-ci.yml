@@ -27,6 +27,11 @@ on:
         required: false
         type: string
         default: 'v1.6.0'
+      gosec-version:
+        description: 'Pinned gosec version used by the shared security gate'
+        required: false
+        type: string
+        default: 'v2.28.0'
     secrets:
       MODULE_READ_TOKEN:
         description: >-
@@ -132,6 +137,9 @@ jobs:
 
     - name: Scan reachable vulnerabilities
       run: go run golang.org/x/vuln/cmd/govulncheck@${{ inputs.govulncheck-version }} ./...
+
+    - name: Run gosec
+      run: go run github.com/securego/gosec/v2/cmd/gosec@${{ inputs.gosec-version }} -quiet ./...
 
     - name: Check go mod tidy
       run: |

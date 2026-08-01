@@ -13,7 +13,7 @@ This directory contains the global reusable workflow templates for Gitea Actions
 
 | Workflow | Stack | Notes |
 |---|---|---|
-| `go-ci.yml` | Go (lib/CLI) | Format, module verification, build, race tests, vet, Staticcheck, govulncheck, and tidy drift. Tool/action revisions are pinned; `-race` is gated on amd64. |
+| `go-ci.yml` | Go (lib/CLI) | Format, module verification, build, race tests, vet, Staticcheck, govulncheck, gosec, and tidy drift. Tool/action revisions are pinned; `-race` is gated on amd64. |
 | `go-integration-ci.yml` | Go + Postgres | Applies the same pinned quality/security contract as `go-ci`, then runs integration tests against `postgres:18-alpine`. |
 | `deno-ci.yml` | Deno | `deno ci`, fmt, lint, task check, task test. Optional `@glpx` npm auth. |
 | `node-ci.yml` | Node | Yarn (corepack) w/ npm fallback. Optional `@glpx` npm auth. |
@@ -87,7 +87,7 @@ To prevent re-litigating past CI pipeline issues, here is a record of critical p
 
 ### 1. `go-ci` (ThreadSanitizer VMA on arm64 RPi runners)
 - **Issue:** `go test -race` aborted on the cluster's arm64 Raspberry Pi runners due to an unsupported VMA range (ThreadSanitizer requires a 48-bit VA kernel, but the Pi runs a 39-bit VA kernel).
-- **Resolution:** Modified the reusable `go-ci.yml` workflow to use `runs-on: amd64` and placed the `-race` execution behind an architecture gate. Now, full race coverage runs on `amd64`, while a fallback tests without the race detector on `arm64`, resulting in a green build regardless of runner architecture.
+- **Resolution:** The reusable `go-ci.yml` workflow uses the canonical generic runner label and places `-race` behind a runtime architecture gate. Full race coverage runs on `amd64`; an `arm64` fallback runs the same tests without ThreadSanitizer.
 
 ### 2. `frontend-ci` (Deno / NPM install 401s)
 - **Issue:** `deno install` (and `npm install`) failed with `401 Unauthorized` when attempting to fetch from the private `@glpx` Gitea registry.
