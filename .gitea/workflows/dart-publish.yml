@@ -1,0 +1,387 @@
+name: Reusable Dart/Flutter Pub Publish
+#
+# Publishes ONE package from a Dart/Flutter workspace to the private Gitea pub
+# registry. Extracted from the pipeline that has been publishing
+# glpx_flutter_connectivity out of flutter-dev-kit; the repo-specific gates
+# (workspace verifier, promotion policy, hosted-install proof) are inputs here
+# rather than hard-coded, so a second publisher can adopt it without inheriting
+# dev-kit's tooling.
+#
+# A tag is a release REQUEST, not a release. The workflow fails closed unless
+# the tag parses, the package exists, its `publish_to:` matches `registry-url`,
+# the pubspec version matches the tag, and the tagged commit is an ancestor of
+# the reviewed default branch. Optional gates (promotion policy, verify
+# commands, OSV scan, hosted-install proof) fail closed too when configured.
+#
+# The package's pubspec.yaml MUST declare `publish_to:` equal to `registry-url`
+# — `dart pub publish` refuses to upload anywhere else, and the preflight below
+# rejects the mismatch early with a clearer message than pub's.
+#
+# Versions are immutable on Gitea: re-publishing an existing name+version fails
+# and there is no retraction window (unlike pub.dev). Delete the version in the
+# Gitea UI first if you genuinely need to overwrite. First publish of a new
+# package name needs no ceremony — Gitea has no name-creation gate.
+#
+# Callers reference: mukimovd/.github/.gitea/workflows/dart-publish.yml@<sha>
+on:
+  workflow_call:
+    inputs:
+      packages-directory:
+        description: 'Directory holding the workspace packages. The package resolves to <packages-directory>/<package>.'
+        required: false
+        type: string
+        default: 'packages'
+      package-name-pattern:
+        description: 'ERE the package name parsed from the tag must match. Guards against a malformed tag selecting an unintended directory.'
+        required: false
+        type: string
+        default: '^glpx_[a-z0-9_]+$'
+      registry-url:
+        description: 'Private Gitea pub registry URL. Must equal the package pubspec `publish_to:`.'
+        required: false
+        type: string
+        default: 'https://gitea.bk.glpx.pro/api/packages/glpx/pub/'
+      default-branch:
+        description: 'Branch the tagged commit must be an ancestor of. Stops a tag on an unreviewed branch from publishing.'
+        required: false
+        type: string
+        default: 'main'
+      flutter-version-file:
+        description: 'Repository-owned SDK version file. Set to an empty string only when flutter-version is explicitly pinned.'
+        required: false
+        type: string
+        default: '.fvmrc'
+      flutter-version:
+        description: 'Flutter SDK version, used only when flutter-version-file is empty.'
+        required: false
+        type: string
+        default: ''
+      channel:
+        description: 'Flutter channel.'
+        required: false
+        type: string
+        default: 'stable'
+      verify-commands:
+        description: 'Newline-separated repo gates run before publish, with $PACKAGE exported. Empty skips the verify gate entirely.'
+        required: false
+        type: string
+        default: ''
+      promotion-policy-file:
+        description: 'JSON file recording the reviewed publication decision. Empty disables the policy gate.'
+        required: false
+        type: string
+        default: ''
+      promotion-policy-filter:
+        description: 'jq filter over promotion-policy-file, given --arg package and --arg registry. Must exit non-zero to block the release.'
+        required: false
+        type: string
+        default: '.packages[$package] | .maturity == "promoted" and .promotionDecision == "publish" and .publishTo == $registry'
+      osv-scan:
+        description: 'Scan locked dependencies for known vulnerabilities before publishing.'
+        required: false
+        type: boolean
+        default: true
+      osv-version:
+        description: 'osv-scanner release tag.'
+        required: false
+        type: string
+        default: 'v2.3.8'
+      osv-sha256:
+        description: 'Expected sha256 of the osv-scanner linux/amd64 binary. Pinned so a compromised release cannot execute here.'
+        required: false
+        type: string
+        default: 'bc98e15319ed0d515e3f9235287ba53cdc5535d576d24fd573978ecfe9ab92dc'
+      setup-android:
+        description: 'Install the Android SDK. Required when a verify gate compiles Flutter Android bundles.'
+        required: false
+        type: boolean
+        default: false
+      android-packages:
+        description: 'sdkmanager packages to install when setup-android is true.'
+        required: false
+        type: string
+        default: 'platform-tools platforms;android-36 build-tools;36.0.0'
+      java-version:
+        description: 'Temurin JDK version, used only when setup-android is true.'
+        required: false
+        type: string
+        default: '17'
+      hosted-install-command:
+        description: 'Post-publish proof that a clean consumer can install the published version, with $PACKAGE and $REGISTRY_URL exported. Empty skips the proof.'
+        required: false
+        type: string
+        default: ''
+    secrets:
+      PUB_TOKEN:
+        required: true
+        description: 'Gitea PAT with read:package + write:package for the pub registry.'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ gitea.workflow }}-${{ gitea.ref }}
+  cancel-in-progress: false   # never cancel a mid-flight publish
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    env:
+      REGISTRY_URL: ${{ inputs.registry-url }}
+    outputs:
+      package: ${{ steps.release.outputs.package }}
+      version: ${{ steps.release.outputs.version }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      # The tag is the only release input, so every field it encodes is
+      # validated before anything reads the filesystem with it.
+      - name: Resolve and validate release coordinates
+        id: release
+        env:
+          NAME_PATTERN: ${{ inputs.package-name-pattern }}
+          PACKAGES_DIR: ${{ inputs.packages-directory }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          tag="${GITHUB_REF_NAME}"
+          case "$tag" in
+            *-v*) ;;
+            *) echo "::error::tag '$tag' is not <package>-v<version>" >&2; exit 1 ;;
+          esac
+          package="${tag%-v*}"
+          version="${tag#*-v}"
+          printf '%s' "$package" | grep -Eq "$NAME_PATTERN" \
+            || { echo "::error::package '$package' does not match $NAME_PATTERN" >&2; exit 1; }
+          printf '%s' "$version" \
+            | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?(\+[0-9A-Za-z.-]+)?$' \
+            || { echo "::error::version '$version' is not semver" >&2; exit 1; }
+          test -f "${PACKAGES_DIR}/${package}/pubspec.yaml" \
+            || { echo "::error::no pubspec at ${PACKAGES_DIR}/${package}/pubspec.yaml" >&2; exit 1; }
+          {
+            echo "package=${package}"
+            echo "version=${version}"
+          } >> "$GITHUB_OUTPUT"
+
+      # Fails here rather than after a long verify run, and with a message that
+      # names both sides of the mismatch.
+      - name: Require pubspec publish_to to match the registry
+        env:
+          PACKAGE: ${{ steps.release.outputs.package }}
+          PACKAGES_DIR: ${{ inputs.packages-directory }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          pubspec="${PACKAGES_DIR}/${PACKAGE}/pubspec.yaml"
+          declared="$(sed -n 's/^publish_to:[[:space:]]*//p' "$pubspec" | tr -d "\"' ")"
+          test -n "$declared" \
+            || { echo "::error::$pubspec has no publish_to:; it would publish to pub.dev" >&2; exit 1; }
+          test "$declared" = "$REGISTRY_URL" \
+            || { echo "::error::$pubspec publish_to '$declared' != registry-url '$REGISTRY_URL'" >&2; exit 1; }
+
+      - name: Require reviewed publication policy
+        if: inputs.promotion-policy-file != ''
+        env:
+          PACKAGE: ${{ steps.release.outputs.package }}
+          POLICY_FILE: ${{ inputs.promotion-policy-file }}
+          POLICY_FILTER: ${{ inputs.promotion-policy-filter }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          jq --exit-status \
+            --arg package "$PACKAGE" \
+            --arg registry "$REGISTRY_URL" \
+            "$POLICY_FILTER" \
+            "$POLICY_FILE" >/dev/null \
+            || { echo "::error::$POLICY_FILE does not approve publishing $PACKAGE" >&2; exit 1; }
+
+      - name: Set up Java
+        if: inputs.setup-android
+        uses: actions/setup-java@03ad4de0992f5dab5e18fcb136590ce7c4a0ac95 # v5.6.0
+        with:
+          distribution: 'temurin'
+          java-version: ${{ inputs.java-version }}
+
+      # Verify gates that compile Flutter Android bundles need a pinned native
+      # toolchain rather than whichever SDK the runner image happens to carry.
+      - name: Set up Android SDK
+        if: inputs.setup-android
+        uses: android-actions/setup-android@40fd30fb8d7440372e1316f5d1809ec01dcd3699 # v4.0.1
+        with:
+          packages: ${{ inputs.android-packages }}
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2.23.0
+        with:
+          channel: ${{ inputs.channel }}
+          flutter-version: ${{ inputs.flutter-version-file == '' && inputs.flutter-version || '' }}
+          flutter-version-file: ${{ inputs.flutter-version-file }}
+          cache: true
+
+      - name: Run repository verify gates
+        if: inputs.verify-commands != ''
+        env:
+          PACKAGE: ${{ steps.release.outputs.package }}
+          VERIFY_COMMANDS: ${{ inputs.verify-commands }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          while IFS= read -r command; do
+            [ -n "$command" ] || continue
+            echo "::group::$command"
+            bash -o pipefail -c "$command"
+            echo "::endgroup::"
+          done <<< "$VERIFY_COMMANDS"
+
+      - name: Scan locked dependencies for known vulnerabilities
+        if: inputs.osv-scan
+        env:
+          OSV_SHA256: ${{ inputs.osv-sha256 }}
+          OSV_VERSION: ${{ inputs.osv-version }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          osv_binary="${RUNNER_TEMP}/osv-scanner_linux_amd64"
+          curl --fail --location --silent --show-error \
+            --output "${osv_binary}" \
+            "https://github.com/google/osv-scanner/releases/download/${OSV_VERSION}/osv-scanner_linux_amd64"
+          echo "${OSV_SHA256}  ${osv_binary}" | sha256sum --check
+          chmod +x "${osv_binary}"
+          "${osv_binary}" scan source --recursive "${GITHUB_WORKSPACE}"
+
+  publish:
+    needs: verify
+    runs-on: ubuntu-latest
+    env:
+      PACKAGE_DIR: ${{ inputs.packages-directory }}/${{ needs.verify.outputs.package }}
+      REGISTRY_URL: ${{ inputs.registry-url }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      # A tag can be pushed at any commit. Publishing is restricted to history
+      # that already reached the reviewed branch.
+      - name: Require the tagged commit to be on the reviewed default branch
+        env:
+          DEFAULT_BRANCH: ${{ inputs.default-branch }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          git merge-base --is-ancestor "${GITHUB_SHA}" "refs/remotes/origin/${DEFAULT_BRANCH}" \
+            || { echo "::error::${GITHUB_SHA} is not an ancestor of origin/${DEFAULT_BRANCH}" >&2; exit 1; }
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2.23.0
+        with:
+          channel: ${{ inputs.channel }}
+          flutter-version: ${{ inputs.flutter-version-file == '' && inputs.flutter-version || '' }}
+          flutter-version-file: ${{ inputs.flutter-version-file }}
+          cache: true
+
+      - name: Require tag and package version to agree
+        env:
+          PACKAGE: ${{ needs.verify.outputs.package }}
+          VERSION: ${{ needs.verify.outputs.version }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          package_version="$(sed -n 's/^version:[[:space:]]*//p' "${PACKAGE_DIR}/pubspec.yaml")"
+          test "$package_version" = "$VERSION" \
+            || { echo "::error::pubspec version '$package_version' != tag version '$VERSION'" >&2; exit 1; }
+          test "${GITHUB_REF_NAME}" = "${PACKAGE}-v${VERSION}" \
+            || { echo "::error::tag '${GITHUB_REF_NAME}' != '${PACKAGE}-v${VERSION}'" >&2; exit 1; }
+
+      # `--env-var` stores the variable NAME in the credential store rather than
+      # the value, so the token never lands in argv or the pub config file. It
+      # must stay exported for every later step that talks to the registry.
+      - name: Authenticate to the private Pub registry
+        env:
+          PUB_TOKEN: ${{ secrets.PUB_TOKEN }}
+        run: dart pub token add "${REGISTRY_URL}" --env-var PUB_TOKEN
+
+      - name: Audit package archive
+        working-directory: ${{ env.PACKAGE_DIR }}
+        env:
+          PUB_TOKEN: ${{ secrets.PUB_TOKEN }}
+        run: dart pub publish --dry-run
+
+      # --force only suppresses the interactive prompt, which cannot be answered
+      # in CI. The dry-run above is the gate; it fails on the same warnings.
+      - name: Publish immutable version
+        working-directory: ${{ env.PACKAGE_DIR }}
+        env:
+          PUB_TOKEN: ${{ secrets.PUB_TOKEN }}
+        run: dart pub publish --force
+
+  # A green publish step only proves the upload was accepted. This proves the
+  # version is actually resolvable and compilable by a clean consumer.
+  verify-hosted-install:
+    needs: [verify, publish]
+    if: inputs.hosted-install-command != ''
+    runs-on: ubuntu-latest
+    env:
+      REGISTRY_URL: ${{ inputs.registry-url }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up Java
+        if: inputs.setup-android
+        uses: actions/setup-java@03ad4de0992f5dab5e18fcb136590ce7c4a0ac95 # v5.6.0
+        with:
+          distribution: 'temurin'
+          java-version: ${{ inputs.java-version }}
+
+      - name: Set up Android SDK
+        if: inputs.setup-android
+        uses: android-actions/setup-android@40fd30fb8d7440372e1316f5d1809ec01dcd3699 # v4.0.1
+        with:
+          packages: ${{ inputs.android-packages }}
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2.23.0
+        with:
+          channel: ${{ inputs.channel }}
+          flutter-version: ${{ inputs.flutter-version-file == '' && inputs.flutter-version || '' }}
+          flutter-version-file: ${{ inputs.flutter-version-file }}
+          cache: true
+
+      # PUB_CACHE and XDG_CONFIG_HOME point outside the checkout, so this
+      # resolves from the registry rather than from the workspace it was built
+      # in. They are set per-step because `runner` is unavailable in job `env`.
+      - name: Authenticate hosted consumer
+        env:
+          PUB_CACHE: ${{ runner.temp }}/hosted-consumer-pub-cache
+          PUB_TOKEN: ${{ secrets.PUB_TOKEN }}
+          XDG_CONFIG_HOME: ${{ runner.temp }}/hosted-consumer-config
+        run: dart pub token add "${REGISTRY_URL}" --env-var PUB_TOKEN
+
+      # The registry needs a moment to serve a just-uploaded version; retry
+      # rather than fail a publish that actually succeeded.
+      - name: Prove a clean hosted consumer installs and compiles
+        env:
+          HOSTED_INSTALL_COMMAND: ${{ inputs.hosted-install-command }}
+          PACKAGE: ${{ needs.verify.outputs.package }}
+          PUB_CACHE: ${{ runner.temp }}/hosted-consumer-pub-cache
+          PUB_TOKEN: ${{ secrets.PUB_TOKEN }}
+          VERSION: ${{ needs.verify.outputs.version }}
+          XDG_CONFIG_HOME: ${{ runner.temp }}/hosted-consumer-config
+        shell: bash
+        run: |
+          set -euo pipefail
+          for attempt in 1 2 3 4 5 6; do
+            if bash -o pipefail -c "$HOSTED_INSTALL_COMMAND"; then
+              exit 0
+            fi
+            if [ "$attempt" -eq 6 ]; then
+              break
+            fi
+            sleep 5
+          done
+          echo "::error::${PACKAGE} ${VERSION} never became installable from ${REGISTRY_URL}" >&2
+          exit 1

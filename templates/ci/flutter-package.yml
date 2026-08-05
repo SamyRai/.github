@@ -1,0 +1,50 @@
+# Consumer CD — publish one workspace package to the private Gitea pub registry.
+# Drop into <repo>/.gitea/workflows/publish-package.yml and remove this header.
+#
+# Pair it with templates/ci/flutter-web.yml (or your own flutter-ci.yml caller)
+# for the on-push quality gate; this file only handles tag-triggered releases.
+#
+# Release flow: land the version bump on main, then push a tag
+# `<package>-v<version>` (e.g. glpx_flutter_connectivity-v0.2.3). The workflow
+# fails closed unless the tag, the pubspec version, the pubspec `publish_to:`,
+# and the reviewed-branch ancestry all agree.
+#
+# CHANGEME: drop the inputs you do not use. Every one below is optional except
+# the PUB_TOKEN secret.
+name: Publish package
+
+on:
+  push:
+    tags:
+      - 'glpx_*-v*'
+
+permissions:
+  contents: read
+
+jobs:
+  publish:
+    uses: mukimovd/.github/.gitea/workflows/dart-publish.yml@main
+    with:
+      # Where packages live. The tag's package name resolves under this.
+      packages-directory: packages
+
+      # Repo gates run before publish, with $PACKAGE exported. Each line runs
+      # under `bash -o pipefail -c`. Drop this to publish without extra gates.
+      verify-commands: |
+        dart run tool/tasks.dart verify
+        dart run tool/tasks.dart verify-independent
+        dart run tool/tasks.dart release-audit --package="$PACKAGE"
+
+      # Reviewed publication decision. Blocks a tag on a package that has not
+      # been promoted. Drop both inputs if the repo has no promotion policy.
+      promotion-policy-file: tool/policy/package_promotion.json
+
+      # Set when a verify gate compiles Flutter Android bundles.
+      setup-android: true
+
+      # Post-publish proof that a clean consumer can resolve the new version
+      # from the registry. $PACKAGE and $REGISTRY_URL are exported.
+      hosted-install-command: |
+        dart run tool/fresh_consumer.dart --package="$PACKAGE" --source=hosted --hosted-url="$REGISTRY_URL"
+    secrets:
+      PUB_TOKEN: ${{ secrets.PUB_TOKEN }}

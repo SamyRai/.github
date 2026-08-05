@@ -107,6 +107,7 @@ instead — that would repair CI by breaking every developer's SSH workflow.
 | Rust | [`templates/ci/rust.yml`](./templates/ci/rust.yml) | `rust-ci.yml` |
 | Docker (image only) | [`templates/ci/docker.yml`](./templates/ci/docker.yml) | `docker-ci.yml` |
 | Flutter web (quality + image) | [`templates/ci/flutter-web.yml`](./templates/ci/flutter-web.yml) | `flutter-ci.yml` + `docker-ci.yml` |
+| Flutter/Dart package (publish) | [`templates/ci/flutter-package.yml`](./templates/ci/flutter-package.yml) | `dart-publish.yml` |
 
 ## Onboarding steps
 

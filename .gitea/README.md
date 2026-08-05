@@ -33,6 +33,7 @@ This directory contains the global reusable workflow templates for Gitea Actions
 | `deno-compile.yml` | Cross-compile Deno binaries (5 targets). |
 | `deno-publish-jsr.yml` | Publish to JSR via `deno publish` (OIDC). |
 | `npm-publish.yml` | Publish `@glpx` scoped packages to the Gitea npm registry (npm/yarn/bun). |
+| `dart-publish.yml` | Publish one workspace package to the Gitea pub registry. Tag-gated, fails closed on tag/version/`publish_to`/branch-ancestry mismatch; optional promotion policy, verify gates, OSV scan, and hosted-install proof. |
 | `release.yml` | GoReleaser release (with UPX). |
 | `base-images-guard.yml` | Enforces `BASE_IMAGES.md` policy (no floating tags, must-mirror list). |
 | `security-sweep.yml` | gosec over Go code. |
@@ -65,6 +66,55 @@ jobs:
     with:
       entrypoint: 'main.ts'
       binary-name: 'my-app'
+```
+
+### Flutter / Dart Workflows
+- **`flutter-ci.yml`**: The quality gate. SDK from `.fvmrc`, optional private-Pub
+  authentication, `flutter pub get --enforce-lockfile`, strict analysis, tests, optional
+  web build. Scaffold: [`../templates/ci/flutter-web.yml`](../templates/ci/flutter-web.yml).
+- **`dart-publish.yml`**: The release lane. Publishes ONE package from a workspace to the
+  private Gitea pub registry (`https://gitea.bk.glpx.pro/api/packages/glpx/pub/`). Scaffold:
+  [`../templates/ci/flutter-package.yml`](../templates/ci/flutter-package.yml).
+
+**Required secret:** `PUB_TOKEN` — a Gitea PAT with `read:package` + `write:package`, stored
+at the `glpx` org / `mukimovd` user level (same strategy as `GLPX_NPM_TOKEN`). First publish
+of a new package name works without ceremony (no pub.dev "manual first publish" gate).
+
+`dart-publish.yml` treats a tag as a release *request*, not a release. It fails closed unless
+the tag parses as `<package>-v<version>`, the package exists under `packages-directory`, its
+pubspec `publish_to:` equals `registry-url`, the pubspec version equals the tag version, and
+the tagged commit is an ancestor of the reviewed default branch. Four further gates are
+opt-in: `verify-commands` (the repo's own workspace gates), `promotion-policy-file` (a
+reviewed JSON publication decision), `osv-scan` (checksum-pinned osv-scanner, on by default),
+and `hosted-install-command` (post-publish proof that a clean consumer can resolve the new
+version — a green upload alone does not prove installability).
+
+Authentication uses `dart pub token add --env-var PUB_TOKEN`, which stores the variable
+*name* rather than the value, so the token never reaches argv or the on-disk pub config.
+Publishing uses `--force` only to suppress the interactive prompt that CI cannot answer; the
+preceding `--dry-run` is the real gate and fails on the same warnings.
+
+> [!NOTE]
+> This workflow was extracted from the pipeline that has been publishing
+> `glpx_flutter_connectivity` out of `flutter-dev-kit`. Repo-specific gates became inputs so
+> a second publisher can adopt it without inheriting dev-kit's `tool/` layout.
+
+**Usage Example (Publish, tag-triggered):**
+```yaml
+on:
+  push:
+    tags: ['glpx_*-v*']   # e.g. glpx_flutter_connectivity-v0.2.3
+
+jobs:
+  publish:
+    uses: mukimovd/.github/.gitea/workflows/dart-publish.yml@main
+    with:
+      packages-directory: packages
+      verify-commands: |
+        dart run tool/tasks.dart verify
+      promotion-policy-file: tool/policy/package_promotion.json
+    secrets:
+      PUB_TOKEN: ${{ secrets.PUB_TOKEN }}
 ```
 
 ## Python Version Restrictions
