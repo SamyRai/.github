@@ -8,10 +8,10 @@ on:
         type: string
         default: '26'
       registry-url:
-        description: 'NPM Registry URL'
+        description: 'NPM Registry URL. The fleet Gitea instance is gitea.bk.glpx.pro; the bare gitea.glpx.pro has never had a DNS record.'
         required: false
         type: string
-        default: 'https://gitea.glpx.pro/api/packages/glpx/npm/'
+        default: 'https://gitea.bk.glpx.pro/api/packages/glpx/npm/'
       scope:
         description: 'NPM Package Scope (e.g. @glpx)'
         required: false
