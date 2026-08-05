@@ -76,6 +76,23 @@ jobs:
         with:
           persist-credentials: false
 
+      # flutter-version is only forwarded when flutter-version-file is empty, so
+      # a caller that sets both gets the file and silently loses its pin. That
+      # reads as an explicit version until the two drift apart, at which point
+      # CI quietly builds against the wrong SDK. Reject the ambiguity instead.
+      - name: Reject an ambiguous SDK pin
+        if: inputs.flutter-version != '' && inputs.flutter-version-file != ''
+        env:
+          FLUTTER_VERSION: ${{ inputs.flutter-version }}
+          FLUTTER_VERSION_FILE: ${{ inputs.flutter-version-file }}
+        shell: bash
+        run: |
+          echo "::error::flutter-version ('${FLUTTER_VERSION}') and flutter-version-file" \
+            "('${FLUTTER_VERSION_FILE}') are both set, but only the file would be used." \
+            "Drop flutter-version to pin from the file, or pass flutter-version-file: ''" \
+            "to pin the literal version." >&2
+          exit 1
+
       - name: Set up Flutter
         uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2.23.0
         with:
