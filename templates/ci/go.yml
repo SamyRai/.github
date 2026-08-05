@@ -14,6 +14,10 @@ permissions:
 
 jobs:
   go-ci:
-    uses: mukimovd/.github/.gitea/workflows/go-ci.yml@main
+    uses: mukimovd/.github/.gitea/workflows/go-ci.yml@2f407c7d643b4aafa3d72c45e394097fc6de3108
+    secrets:
+      # Only needed if this repo imports private go.glpx.pro/* modules (the
+      # gdk-* kits). Harmless when unset: go-ci.yml warns and skips.
+      MODULE_READ_TOKEN: ${{ secrets.MODULE_READ_TOKEN }}
     # with:
     #   go-version: '1.26'  # override only if you need to pin

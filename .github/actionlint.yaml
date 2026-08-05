@@ -1,0 +1,13 @@
+# actionlint models GitHub-hosted runners, so it rejects this fleet's
+# self-hosted Gitea labels as unknown ("label \"generic\" is unknown"). Declaring
+# them here is the mechanism actionlint's own error message points at.
+#
+# `generic` is the Harbor-backed amd64 runner and the canonical label for
+# reusable workflow_call jobs (go-ci.yml, docker-ci.yml, release.yml). Without
+# this file the Actionlint workflow fails on those three, which is why it had
+# been red on every run since 2026-06 while nobody noticed.
+self-hosted-runner:
+  labels:
+    - generic
+    - amd64
+    - arm64

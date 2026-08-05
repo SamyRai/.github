@@ -19,8 +19,12 @@ jobs:
     container:
       # Major-pinned (was :latest): patch/minor updates still flow, but a major
       # bump is an explicit edit here, and repeat pulls hit cached layers far
-      # more often than :latest churn. 43.265.2 was current at pin time.
-      image: ghcr.io/renovatebot/renovate:43
+      # more often than :latest churn. 44.3.1 was current at pin time.
+      #
+      # Bumped 43 -> 44 on 2026-07-30. Upstream's own 44.0.0 notes say it "was
+      # incorrectly flagged as a major bump" with no breaking changes, but the
+      # release train moved regardless, so :43 stopped receiving fixes.
+      image: ghcr.io/renovatebot/renovate:44
     steps:
       - name: Checkout
         uses: actions/checkout@v7

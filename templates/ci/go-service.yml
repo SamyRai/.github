@@ -15,16 +15,24 @@ permissions:
 
 jobs:
   go-ci:
-    uses: mukimovd/.github/.gitea/workflows/go-ci.yml@main
+    uses: mukimovd/.github/.gitea/workflows/go-ci.yml@2f407c7d643b4aafa3d72c45e394097fc6de3108
+    # with:
+    #   # Set when go.mod is not at the checkout root, e.g. a workspace repo
+    #   # with the service under ./my-service (see mukimovd/smm-hub).
+    #   working-directory: ./my-service
+    secrets:
+      # Only needed if this repo imports private go.glpx.pro/* modules (the
+      # gdk-* kits). Harmless when unset: go-ci.yml warns and skips.
+      MODULE_READ_TOKEN: ${{ secrets.MODULE_READ_TOKEN }}
 
   base-images:
-    uses: mukimovd/.github/.gitea/workflows/base-images-guard.yml@main
+    uses: mukimovd/.github/.gitea/workflows/base-images-guard.yml@2f407c7d643b4aafa3d72c45e394097fc6de3108
 
   # Image build/push only on the default branch (PRs just run go-ci above).
   docker:
     if: gitea.ref == 'refs/heads/main' || gitea.ref == 'refs/heads/master'
     needs: [go-ci, base-images]
-    uses: mukimovd/.github/.gitea/workflows/docker-ci.yml@main
+    uses: mukimovd/.github/.gitea/workflows/docker-ci.yml@2f407c7d643b4aafa3d72c45e394097fc6de3108
     with:
       image-name: glpx/CHANGEME  # e.g. glpx/kb-server
       # context: '.'          # override if Dockerfile lives in a subdir
@@ -33,9 +41,15 @@ jobs:
       REGISTRY_USERNAME: ${{ secrets.REGISTRY_USERNAME }}
       REGISTRY_PASSWORD: ${{ secrets.REGISTRY_PASSWORD }}
       GITEA_TOKEN: ${{ secrets.GITEA_TOKEN }}
+      # PUB_TOKEN is intentionally omitted: Go services do not resolve Pub.
       # Uncomment if the Dockerfile runs `go install` for @glpx npm-linked tooling
       # or `npm install` for @glpx packages:
       # NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+      # Uncomment if the Dockerfile itself runs `go mod download` for private
+      # go.glpx.pro/* modules. Distinct from the MODULE_READ_TOKEN forwarded to
+      # go-ci.yml above: that is a read:repository token for cloning over git,
+      # this is a read:package token for the Gitea Go module registry.
+      # GO_MODULE_TOKEN: ${{ secrets.GO_MODULE_TOKEN }}
       # Optional: uncomment to authenticate upstream Docker Hub pulls.
       # DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
       # DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}

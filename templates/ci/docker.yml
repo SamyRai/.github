@@ -27,5 +27,16 @@ jobs:
       REGISTRY_USERNAME: ${{ secrets.REGISTRY_USERNAME }}
       REGISTRY_PASSWORD: ${{ secrets.REGISTRY_PASSWORD }}
       GITEA_TOKEN: ${{ secrets.GITEA_TOKEN }}
+      # PUB_TOKEN is intentionally omitted: this generic container template
+      # does not assume Dart or Flutter dependency resolution.
       # Uncomment if the Dockerfile runs `npm install` / `deno install` for @glpx packages:
       # NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+      # Uncomment if the Dockerfile runs `go mod download` for private
+      # go.glpx.pro/* modules. Note this is a DIFFERENT credential from the
+      # MODULE_READ_TOKEN that go-ci.yml uses: that one is a read:repository
+      # token for cloning over git, this one is a read:package token for the
+      # Gitea Go module registry. See ONBOARDING.md § Private Go modules.
+      # GO_MODULE_TOKEN: ${{ secrets.GO_MODULE_TOKEN }}
+      # Optional: uncomment to authenticate upstream Docker Hub pulls.
+      # DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+      # DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}

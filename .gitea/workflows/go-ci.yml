@@ -7,6 +7,38 @@ on:
         required: false
         type: string
         default: '1.26'
+      working-directory:
+        description: >-
+          Directory holding go.mod, for repos whose module is not at the
+          checkout root (e.g. a workspace repo with the service under
+          ./my-service). Defaults to the root, so existing callers are
+          unaffected. Only `run:` steps are relocated; the module cache key
+          still globs **/go.sum repo-wide, which is correct either way.
+        required: false
+        type: string
+        default: '.'
+      staticcheck-version:
+        description: 'Pinned Staticcheck version used by the shared quality gate'
+        required: false
+        type: string
+        default: 'v0.7.0'
+      govulncheck-version:
+        description: 'Pinned govulncheck version used by the shared security gate'
+        required: false
+        type: string
+        default: 'v1.6.0'
+      gosec-version:
+        description: 'Pinned gosec version used by the shared security gate'
+        required: false
+        type: string
+        default: 'v2.28.0'
+    secrets:
+      MODULE_READ_TOKEN:
+        description: >-
+          Gitea token with read:repository scope, used to fetch private
+          go.glpx.pro/* modules. Optional: repos with no private module
+          dependencies can omit it.
+        required: false
 
 concurrency:
   group: ${{ gitea.workflow }}-${{ gitea.head_ref || gitea.ref }}
@@ -17,6 +49,13 @@ permissions:
 
 env:
   GOTOOLCHAIN: local
+  # Release gates validate the module exactly as external consumers resolve it;
+  # a repository-local go.work must never hide missing version requirements.
+  GOWORK: 'off'
+  # Keep the private module namespace off proxy.golang.org and the public
+  # checksum database. Without this, resolution fails with a confusing sum
+  # mismatch rather than an obvious "private repository" error.
+  GOPRIVATE: 'go.glpx.pro/*'
 
 jobs:
   test:
@@ -26,24 +65,58 @@ jobs:
     # The GOARCH gate on `-race` below is kept as defence-in-depth (TSan needs a 48-bit VA,
     # which the RPi 39-bit kernel lacks) for the rare explicit `runs-on: arm64` Go job.
     runs-on: generic
+    defaults:
+      run:
+        working-directory: ${{ inputs.working-directory }}
     steps:
-    - uses: actions/checkout@v7
+    - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
     - name: Set up Go
-      uses: actions/setup-go@v6
+      uses: actions/setup-go@4dc6199c7b1a012772edbd06daecab0f50c9053c # v6.1.0
       with:
         go-version: ${{ inputs.go-version }}
 
     - name: Cache Go modules
-      uses: actions/cache@v5
+      uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5.0.3
       with:
         path: ~/go/pkg/mod
         key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
         restore-keys: |
           ${{ runner.os }}-go-
 
+    - name: Configure private Go module access
+      # go.glpx.pro discovery returns an ssh:// clone URL. That is right for
+      # humans, whose keys are loaded, but a runner has none -- the fetch dies
+      # with "fatal: Could not read from remote repository". Rewrite to
+      # token-authenticated https for CI only, leaving the vanity metadata and
+      # every developer's SSH workflow untouched.
+      env:
+        MODULE_READ_TOKEN: ${{ secrets.MODULE_READ_TOKEN }}
+      run: |
+        if [ -n "$MODULE_READ_TOKEN" ]; then
+          git config --global \
+            url."https://$MODULE_READ_TOKEN@gitea.bk.glpx.pro/".insteadOf \
+            "ssh://git@gitea.bk.glpx.pro:2222/"
+        else
+          echo "::warning::MODULE_READ_TOKEN unset; private go.glpx.pro modules cannot be fetched"
+        fi
+
     - name: Download dependencies
       run: go mod download
+
+    - name: Verify downloaded modules
+      run: go mod verify
+
+    - name: Check formatting
+      run: |
+        unformatted="$(gofmt -l .)"
+        if [ -n "$unformatted" ]; then
+          echo "$unformatted"
+          exit 1
+        fi
+
+    - name: Build packages
+      run: go build ./...
 
     - name: Run tests
       # The race detector (ThreadSanitizer) aborts on the cluster's arm64 RPi
@@ -62,7 +135,16 @@ jobs:
     - name: Run go vet
       run: go vet ./...
 
+    - name: Run Staticcheck
+      run: go run honnef.co/go/tools/cmd/staticcheck@${{ inputs.staticcheck-version }} ./...
+
+    - name: Scan reachable vulnerabilities
+      run: go run golang.org/x/vuln/cmd/govulncheck@${{ inputs.govulncheck-version }} ./...
+
+    - name: Run gosec
+      run: go run github.com/securego/gosec/v2/cmd/gosec@${{ inputs.gosec-version }} -quiet ./...
+
     - name: Check go mod tidy
-      run: |
-        go mod tidy
-        git diff --exit-code go.mod go.sum || (echo "go.mod or go.sum is not tidy" && exit 1)
+      # -diff is non-mutating and also reports a missing, newly required
+      # go.sum; `git diff` alone cannot see untracked files.
+      run: go mod tidy -diff

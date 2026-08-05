@@ -40,10 +40,59 @@ Gitea UI) are:
 |---|---|---|
 | `NPM_TOKEN` | `deno-ci`, `node-ci`, `npm-publish`, `docker-ci` (build-time) | `secret/baikonur/registry/npm-reader` |
 | `REGISTRY_USERNAME` / `REGISTRY_PASSWORD` | `docker-ci`, `compose-ci`, `release` | Harbor robot `robot$renovate-reader` |
-| `GITEA_TOKEN` | `docker-ci` (custom checkout), `release` (GoReleaser) | per-repo or user PAT |
+| `GITEA_TOKEN` | `docker-ci` (custom checkout and BuildKit secret `id=gitea_token` for private Git dependencies), `release` (GoReleaser) | per-repo or user PAT |
+| `PUB_TOKEN` | `flutter-ci` and `docker-ci` when a Flutter app resolves private hosted Pub packages (`id=pub_token` inside BuildKit) | least-privilege `read:package` PAT |
 | `DOCKERHUB_USERNAME` / `DOCKERHUB_TOKEN` | `docker-ci` (optional, upstream rate-limit headroom) | — |
+| `MODULE_READ_TOKEN` | `go-ci`, `go-integration-ci` (optional; only repos importing private `go.glpx.pro/*` modules) | `secret/baikonur/registry/gdk-module-reader` |
+| `GO_MODULE_TOKEN` | `docker-ci` (optional; only Dockerfiles that themselves run `go mod download`) | `secret/baikonur/registry/gdk-module-reader` |
+
+The last two are **different credentials for the same goal** and are easy to
+confuse: `MODULE_READ_TOKEN` is a `read:repository` token used to clone the
+private repos over git, while `GO_MODULE_TOKEN` is a `read:package` token for the
+Gitea Go module registry. A repo needs whichever matches how it fetches — the
+reusable Go workflows use the former; a Dockerfile doing its own `go mod
+download` uses the latter. See § Private Go modules below.
 
 See [`.gitea/README.md`](./.gitea/README.md) § Secrets Strategy for the full rationale.
+
+## Private Go modules (`go.glpx.pro/*`)
+
+The `gdk-*` kits are private Gitea repositories published under the `go.glpx.pro`
+vanity path. Two things are needed to consume them, and `go-ci.yml` /
+`go-integration-ci.yml` handle both:
+
+1. **`GOPRIVATE=go.glpx.pro/*`** — set in the reusable workflow. Without it, Go
+   goes to `proxy.golang.org` and the public checksum database and fails with a
+   sum mismatch rather than an obvious "private repository" error.
+2. **`MODULE_READ_TOKEN`** — a Gitea token with `read:repository` scope. Discovery
+   returns an `ssh://` clone URL, which works for a developer (their key is
+   loaded) but not for a runner. The workflow rewrites it to
+   token-authenticated https **for CI only**, via
+   `git config --global url.<https>.insteadOf <ssh>`, leaving the vanity metadata
+   and every developer's SSH workflow untouched.
+
+Pass it through from a caller that needs it:
+
+```yaml
+jobs:
+  go-ci:
+    uses: mukimovd/.github/.gitea/workflows/go-ci.yml@43a9756c3c5bf750b7d68aecbaea49cecc010fe7
+    secrets:
+      MODULE_READ_TOKEN: ${{ secrets.MODULE_READ_TOKEN }}
+```
+
+The secret is **optional**: a repo with no private module dependencies can omit
+it, and the step logs a warning and skips rather than configuring a broken
+credential. Install it with `glpxctl` rather than by hand so the value comes
+from Vault and is never printed:
+
+```bash
+glpxctl secret set <owner>/<repo> MODULE_READ_TOKEN \
+  --from-vault baikonur/registry/gdk-module-reader --allow-runtime-write
+```
+
+Do **not** "fix" a fetch failure by making the vanity server advertise `https://`
+instead — that would repair CI by breaking every developer's SSH workflow.
 
 ## Pick a template
 
@@ -57,6 +106,7 @@ See [`.gitea/README.md`](./.gitea/README.md) § Secrets Strategy for the full ra
 | Python | [`templates/ci/python.yml`](./templates/ci/python.yml) | `python-ci.yml` |
 | Rust | [`templates/ci/rust.yml`](./templates/ci/rust.yml) | `rust-ci.yml` |
 | Docker (image only) | [`templates/ci/docker.yml`](./templates/ci/docker.yml) | `docker-ci.yml` |
+| Flutter web (quality + image) | [`templates/ci/flutter-web.yml`](./templates/ci/flutter-web.yml) | `flutter-ci.yml` + `docker-ci.yml` |
 
 ## Onboarding steps
 
@@ -91,6 +141,9 @@ After the first green run on `main`:
 - (If Docker) `registry.bk.glpx.pro/<image>:<timestamp>-<sha7>` exists in Harbor, and a
   Renovate PR bumping the GitOps values tag opens within the next scheduled window (4x/day,
   off-peak Europe/Berlin).
+- The Docker job summary contains a release receipt with the tag, manifest
+  digest, exact `repository@sha256:...` reference, and source commit. Preserve
+  that receipt for a manual digest-pinned promotion.
 
 ## Troubleshooting
 
@@ -103,3 +156,8 @@ After the first green run on `main`:
   one immutable tag; if you hit this you're on a custom lane. Switch to `docker-ci.yml`.
 - **`go test -race` aborts on arm64** — expected on the RPi runners (39-bit VMA). `go-ci.yml`
   already gates `-race` on `GOARCH==amd64`; if you hit this you've forked the race step.
+- **`fatal: Could not read from remote repository` fetching a `go.glpx.pro/*` module** —
+  `MODULE_READ_TOKEN` is unset. The kits are private, and `go.glpx.pro` discovery returns an
+  `ssh://` clone URL: correct for a developer whose key is loaded, impossible for a runner.
+  `go-ci.yml` rewrites it to token-authenticated https, but only when the secret exists.
+  See § Private Go modules above.
