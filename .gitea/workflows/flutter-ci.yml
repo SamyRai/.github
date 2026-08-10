@@ -56,6 +56,9 @@ on:
       PUB_TOKEN:
         required: false
         description: 'Private Pub read token. Required when pub-registry-url is set.'
+      GIT_READ_TOKEN:
+        required: false
+        description: 'Read-only Gitea repository token for commit-pinned private Git dependencies.'
 
 permissions:
   contents: read
@@ -118,7 +121,21 @@ jobs:
           # than copying the credential. Keep the value available whenever Pub
           # may resolve the authenticated hosted package.
           PUB_TOKEN: ${{ secrets.PUB_TOKEN }}
-        run: flutter pub get --enforce-lockfile
+          GIT_READ_TOKEN: ${{ secrets.GIT_READ_TOKEN }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          credential_file="${RUNNER_TEMP}/flutter-git-credentials-${GITHUB_RUN_ID}"
+          cleanup() { rm -f -- "$credential_file"; }
+          trap cleanup EXIT
+          if [ -n "$GIT_READ_TOKEN" ]; then
+            umask 077
+            printf 'https://token:%s@gitea.bk.glpx.pro\n' "$GIT_READ_TOKEN" >"$credential_file"
+            export GIT_CONFIG_COUNT=1
+            export GIT_CONFIG_KEY_0=credential.helper
+            export GIT_CONFIG_VALUE_0="store --file=${credential_file}"
+          fi
+          flutter pub get --enforce-lockfile
 
       - name: Verify (custom command)
         if: inputs.verify-command != ''

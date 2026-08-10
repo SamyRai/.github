@@ -22,7 +22,7 @@ This directory contains the global reusable workflow templates for Gitea Actions
 | `rust-ci.yml` | Rust | fmt, clippy `-D warnings`, workspace test. |
 | `ruby-ci.yml` | Ruby | rubocop + rspec/rails test (fail-loud). |
 | `hugo-ci.yml` | Hugo | extended build with `--gc --minify`, submodules. |
-| `flutter-ci.yml` | Flutter | SDK from `.fvmrc`, optional private-Pub authentication, enforced lockfile, strict analysis, tests, optional web build. |
+| `flutter-ci.yml` | Flutter | SDK from `.fvmrc`, optional private-Pub and private-Git authentication, enforced lockfile, strict analysis, tests, optional web build. |
 
 ### Build / deploy workflows
 
@@ -70,8 +70,9 @@ jobs:
 
 ### Flutter / Dart Workflows
 - **`flutter-ci.yml`**: The quality gate. SDK from `.fvmrc`, optional private-Pub
-  authentication, `flutter pub get --enforce-lockfile`, strict analysis, tests, optional
-  web build. Scaffold: [`../templates/ci/flutter-web.yml`](../templates/ci/flutter-web.yml).
+  and read-only private-Git authentication, `flutter pub get --enforce-lockfile`, strict
+  analysis, tests, optional web build. Scaffold:
+  [`../templates/ci/flutter-web.yml`](../templates/ci/flutter-web.yml).
 - **`dart-publish.yml`**: The release lane. Publishes ONE package from a workspace to the
   private Gitea pub registry (`https://gitea.bk.glpx.pro/api/packages/glpx/pub/`). Scaffold:
   [`../templates/ci/flutter-package.yml`](../templates/ci/flutter-package.yml).
@@ -79,6 +80,11 @@ jobs:
 **Required secret:** `PUB_TOKEN` — a Gitea PAT with `read:package` + `write:package`, stored
 at the `glpx` org / `mukimovd` user level (same strategy as `GLPX_NPM_TOKEN`). First publish
 of a new package name works without ceremony (no pub.dev "manual first publish" gate).
+
+Flutter consumers with private Git dependencies may additionally forward
+`GIT_READ_TOKEN`, backed by a least-privilege `read:repository` PAT. It is scoped to the
+locked install step through a temporary credential file and is removed before analysis,
+tests, custom verification, or builds run.
 
 `dart-publish.yml` treats a tag as a release *request*, not a release. It fails closed unless
 the tag parses as `<package>-v<version>`, the package exists under `packages-directory`, its
