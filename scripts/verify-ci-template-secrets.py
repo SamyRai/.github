@@ -46,6 +46,10 @@ EXPECTED_GO_WORKFLOWS = {
 }
 SECRET_KEY = re.compile(r"^(\s+)([A-Z][A-Z0-9_]*):\s*$")
 STEP = re.compile(r"(?m)^      - name:\s+")
+MUTABLE_INSTALL_FALLBACK = re.compile(
+    r"(?:npm|yarn|bun)\s+(?:ci|install)[^\n]*\|\|[^\n]*(?:npm|yarn|bun)\s+install"
+)
+UNPINNED_GLOBAL_INSTALL = re.compile(r"npm\s+install\s+-g\s+(?:bun|corepack)(?:\s|$)")
 
 
 def indent_of(line: str) -> int:
@@ -166,6 +170,41 @@ def verify_go_templates_pin_workflows() -> list[str]:
     return failures
 
 
+def verify_dependency_installs_fail_closed() -> list[str]:
+    """Reject install paths that silently fall back to unlocked resolution."""
+    failures: list[str] = []
+    for workflow in sorted(WORKFLOWS.glob("*.yml")):
+        body = workflow.read_text()
+        for number, line in enumerate(body.splitlines(), start=1):
+            if MUTABLE_INSTALL_FALLBACK.search(line):
+                failures.append(
+                    f"{workflow.relative_to(REPO)}:{number}: locked dependency "
+                    "installation must fail closed; remove the mutable fallback"
+                )
+            if UNPINNED_GLOBAL_INSTALL.search(line):
+                failures.append(
+                    f"{workflow.relative_to(REPO)}:{number}: package-manager tooling "
+                    "must not be installed globally from an unpinned package"
+                )
+    return failures
+
+
+def verify_docker_sbom_contract() -> list[str]:
+    """Require the canonical image build to publish and receipt an SBOM attestation."""
+    workflow = WORKFLOWS / "docker-ci.yml"
+    body = workflow.read_text()
+    required = {
+        "--sbom=true": "Buildx SBOM generation is not enabled",
+        "sbom-uri:": "the reusable workflow does not expose an SBOM URI",
+        "sbom-uri=${sbom_uri}": "the build receipt does not emit the SBOM URI",
+    }
+    return [
+        f"{workflow.relative_to(REPO)}: {message}"
+        for marker, message in required.items()
+        if marker not in body
+    ]
+
+
 def main() -> int:
     if not TEMPLATES.is_dir():
         print(f"error: {TEMPLATES} not found", file=sys.stderr)
@@ -194,15 +233,16 @@ def main() -> int:
 
     failures.extend(verify_pub_token_scope())
     failures.extend(verify_go_templates_pin_workflows())
+    failures.extend(verify_dependency_installs_fail_closed())
+    failures.extend(verify_docker_sbom_contract())
 
     if failures:
-        print("CI template / reusable-workflow secret drift:\n", file=sys.stderr)
+        print("CI template / reusable-workflow contract drift:\n", file=sys.stderr)
         for failure in failures:
             print(f"  - {failure}", file=sys.stderr)
         print(
-            f"\n{len(failures)} problem(s). A reusable workflow gained a secret that its "
-            "templates never surfaced — the class of drift that left MODULE_READ_TOKEN "
-            "out of the Go templates.",
+            f"\n{len(failures)} problem(s). Reusable workflow contracts must keep "
+            "secret forwarding, immutable references, and locked installs fail closed.",
             file=sys.stderr,
         )
         return 1

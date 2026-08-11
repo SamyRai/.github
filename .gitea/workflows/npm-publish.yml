@@ -22,6 +22,16 @@ on:
         required: false
         type: string
         default: 'npm'
+      corepack-version:
+        description: 'Pinned Corepack version used to launch the Yarn version declared in package.json'
+        required: false
+        type: string
+        default: '0.35.0'
+      bun-version:
+        description: 'Pinned Bun version used for install, build, and publish'
+        required: false
+        type: string
+        default: '1.3.14'
     secrets:
       NPM_TOKEN:
         required: true
@@ -50,25 +60,60 @@ jobs:
 
       - name: Install dependencies (npm)
         if: ${{ inputs.package-manager == 'npm' }}
-        run: npm ci || npm install
+        run: npm ci
 
       - name: Install dependencies (yarn)
         if: ${{ inputs.package-manager == 'yarn' }}
-        run: npm install -g corepack && corepack enable && yarn install --immutable || yarn install
+        env:
+          COREPACK_VERSION: ${{ inputs.corepack-version }}
+        run: |
+          set -euo pipefail
+          grep -Eq '"packageManager"[[:space:]]*:[[:space:]]*"yarn@[0-9]' package.json || {
+            echo 'package.json must pin Yarn in packageManager (for example, yarn@4.10.3).' >&2
+            exit 1
+          }
+          npm exec --yes "corepack@${COREPACK_VERSION}" -- yarn install --immutable
 
       - name: Install dependencies (bun)
         if: ${{ inputs.package-manager == 'bun' }}
-        run: npm install -g bun && bun install --frozen-lockfile || bun install
+        env:
+          BUN_VERSION: ${{ inputs.bun-version }}
+        run: npm exec --yes "bun@${BUN_VERSION}" -- install --frozen-lockfile
+
+      - name: Reject unsupported package managers
+        if: ${{ inputs.package-manager != 'npm' && inputs.package-manager != 'yarn' && inputs.package-manager != 'bun' }}
+        env:
+          PACKAGE_MANAGER: ${{ inputs.package-manager }}
+        run: |
+          echo "Unsupported package manager: ${PACKAGE_MANAGER}" >&2
+          exit 1
 
       - name: Run build (if script exists)
+        env:
+          PACKAGE_MANAGER: ${{ inputs.package-manager }}
+          COREPACK_VERSION: ${{ inputs.corepack-version }}
+          BUN_VERSION: ${{ inputs.bun-version }}
         run: |
-          if [ -f "package.json" ]; then
-            if grep -q '"build":' package.json; then
-              ${{ inputs.package-manager }} run build
-            fi
-          fi
+          set -euo pipefail
+          grep -q '"build":' package.json || exit 0
+          case "$PACKAGE_MANAGER" in
+            npm) npm run build ;;
+            yarn) npm exec --yes "corepack@${COREPACK_VERSION}" -- yarn run build ;;
+            bun) npm exec --yes "bun@${BUN_VERSION}" -- run build ;;
+            *) exit 1 ;;
+          esac
 
       - name: Publish package
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-        run: ${{ inputs.package-manager }} publish
+          PACKAGE_MANAGER: ${{ inputs.package-manager }}
+          COREPACK_VERSION: ${{ inputs.corepack-version }}
+          BUN_VERSION: ${{ inputs.bun-version }}
+        run: |
+          set -euo pipefail
+          case "$PACKAGE_MANAGER" in
+            npm) npm publish ;;
+            yarn) npm exec --yes "corepack@${COREPACK_VERSION}" -- yarn npm publish ;;
+            bun) npm exec --yes "bun@${BUN_VERSION}" -- publish ;;
+            *) exit 1 ;;
+          esac

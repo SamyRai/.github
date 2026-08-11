@@ -16,7 +16,7 @@ This directory contains the global reusable workflow templates for Gitea Actions
 | `go-ci.yml` | Go (lib/CLI) | Format, module verification, build, race tests, vet, Staticcheck, govulncheck, gosec, and tidy drift. Tool/action revisions are pinned; `-race` is gated on amd64. |
 | `go-integration-ci.yml` | Go + Postgres | Applies the same pinned quality/security contract as `go-ci`, then runs integration tests against `postgres:18-alpine`. |
 | `deno-ci.yml` | Deno | `deno ci`, fmt, lint, task check, task test. Optional `@glpx` npm auth. |
-| `node-ci.yml` | Node | Yarn (corepack) w/ npm fallback. Optional `@glpx` npm auth. |
+| `node-ci.yml` | Node | Locked Yarn (via a pinned Corepack launcher) or `npm ci`; installs fail closed. Optional `@glpx` npm auth. |
 | `bun-ci.yml` | Bun | install, lint, typecheck, test. |
 | `python-ci.yml` | Python | uv + ruff + pytest. **Restricted to `<3.14`** (see below). |
 | `rust-ci.yml` | Rust | fmt, clippy `-D warnings`, workspace test. |
@@ -28,7 +28,7 @@ This directory contains the global reusable workflow templates for Gitea Actions
 
 | Workflow | Purpose |
 |---|---|
-| `docker-ci.yml` | **Canonical** Docker build/push. Pushes one immutable `YYYYMMDDHHMMSS-<sha7>` tag and emits a tag+digest release receipt; Renovate auto-bumps tag-managed GitOps values on green. |
+| `docker-ci.yml` | **Canonical** Docker build/push. Pushes one immutable `YYYYMMDDHHMMSS-<sha7>` tag with BuildKit SPDX SBOM attestation and emits tag, digest, image-reference, and OCI SBOM-subject outputs; Renovate auto-bumps tag-managed GitOps values on green. |
 | `compose-ci.yml` | Bring up a compose stack, run e2e/integration, tear down. Two models: `exit-from` or `test-command`. |
 | `deno-compile.yml` | Cross-compile Deno binaries (5 targets). |
 | `deno-publish-jsr.yml` | Publish to JSR via `deno publish` (OIDC). |
@@ -51,7 +51,7 @@ New repos should copy a template from [`../templates/ci/`](../templates/ci/) rat
 hand-write a `uses:` reference. See [`../ONBOARDING.md`](../ONBOARDING.md).
 
 ### `npm-publish.yml`
-A shared CD workflow for publishing NPM packages to the Gitea registry. It supports `npm`, `yarn`, and `bun` as package managers.
+A shared CD workflow for publishing NPM packages to the Gitea registry. It supports `npm`, `yarn`, and `bun` as package managers. Every manager uses its frozen/immutable install mode; Yarn consumers must pin the manager in `package.json#packageManager`.
 
 ### Deno v2 Workflows
 - **`deno-ci.yml`**: A standard CI workflow that runs `deno install`, `deno fmt`, `deno lint`, `deno check`, and `deno test`. Supports injecting `NPM_TOKEN` for projects relying on your private `@glpx` registry.

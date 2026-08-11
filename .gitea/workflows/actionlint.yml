@@ -43,7 +43,7 @@ jobs:
           # Gitea-specific false positives (no real bugs as of 2026-06-23):
           #  - 'gitea' context: the Gitea-recommended form; github.* is just an alias.
           #  - secrets-in-if: Gitea does not enforce GitHub's context-availability rules.
-          #  - SC2015: intentional `A && B || C` install fallbacks.
+          #  - SC2015: intentional `A && B || C` shell branches outside installs.
           #  - SC2193: false positive — actionlint replaces matrix expressions with a
           #    fixed placeholder, so shellcheck wrongly sees a constant comparison.
           #  - permission scope "releases": a real Gitea scope with no GitHub

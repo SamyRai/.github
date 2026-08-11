@@ -67,6 +67,9 @@ on:
       image-reference:
         description: 'Exact immutable repository@sha256:... reference from the release receipt.'
         value: ${{ jobs.build-and-push.outputs.image-reference }}
+      sbom-uri:
+        description: 'OCI URI of the immutable image subject carrying the BuildKit SPDX SBOM attestation.'
+        value: ${{ jobs.build-and-push.outputs.sbom-uri }}
 
 permissions:
   contents: read
@@ -82,6 +85,7 @@ jobs:
       image-tag: ${{ steps.meta.outputs.stamp }}
       image-digest: ${{ steps.push.outputs.digest }}
       image-reference: ${{ steps.push.outputs.reference }}
+      sbom-uri: ${{ steps.push.outputs.sbom-uri }}
     steps:
       - name: Checkout code from Gitea
         env:
@@ -199,6 +203,7 @@ jobs:
           # must migrate to the `:<stamp>` tag (see SHIP_PIPELINE.md).
           docker buildx build \
             --push \
+            --sbom=true \
             --platform "$PLATFORMS" \
             --network "$BUILD_NETWORK" \
             "${allow_args[@]}" \
@@ -217,9 +222,11 @@ jobs:
             exit 1
           fi
           reference="${repository}@${digest}"
+          sbom_uri="oci://${reference}"
           {
             echo "digest=${digest}"
             echo "reference=${reference}"
+            echo "sbom-uri=${sbom_uri}"
           } >> "$GITHUB_OUTPUT"
 
           {
@@ -231,5 +238,6 @@ jobs:
             echo "| Tag | \`${IMAGE_TAG}\` |"
             echo "| Digest | \`${digest}\` |"
             echo "| Exact reference | \`${reference}\` |"
+            echo "| SBOM subject | \`${sbom_uri}\` |"
             echo "| Source commit | \`${SOURCE_SHA}\` |"
           } >> "$GITHUB_STEP_SUMMARY"

@@ -7,6 +7,16 @@ on:
         required: false
         type: string
         default: '26'
+      package-manager:
+        description: 'Locked package manager to use (yarn or npm)'
+        required: false
+        type: string
+        default: 'yarn'
+      corepack-version:
+        description: 'Pinned Corepack version used to launch the Yarn version declared in package.json'
+        required: false
+        type: string
+        default: '0.35.0'
     secrets:
       NPM_TOKEN:
         required: false
@@ -32,6 +42,7 @@ jobs:
         node-version: ${{ inputs.node-version }}
 
     - name: Cache Yarn
+      if: ${{ inputs.package-manager == 'yarn' }}
       uses: actions/cache@v5
       with:
         path: .yarn/cache
@@ -52,13 +63,57 @@ jobs:
           >> "$HOME/.npmrc"
 
     - name: Install dependencies
-      run: npm install -g corepack && corepack enable && yarn install --immutable || npm install
+      env:
+        PACKAGE_MANAGER: ${{ inputs.package-manager }}
+        COREPACK_VERSION: ${{ inputs.corepack-version }}
+      run: |
+        set -euo pipefail
+        case "$PACKAGE_MANAGER" in
+          npm)
+            npm ci
+            ;;
+          yarn)
+            grep -Eq '"packageManager"[[:space:]]*:[[:space:]]*"yarn@[0-9]' package.json || {
+              echo 'package.json must pin Yarn in packageManager (for example, yarn@4.10.3).' >&2
+              exit 1
+            }
+            npm exec --yes "corepack@${COREPACK_VERSION}" -- yarn install --immutable
+            ;;
+          *)
+            echo "Unsupported package manager: ${PACKAGE_MANAGER}" >&2
+            exit 1
+            ;;
+        esac
 
     - name: Run linter
-      run: yarn lint || npm run lint
+      env:
+        PACKAGE_MANAGER: ${{ inputs.package-manager }}
+        COREPACK_VERSION: ${{ inputs.corepack-version }}
+      run: |
+        case "$PACKAGE_MANAGER" in
+          npm) npm run lint ;;
+          yarn) npm exec --yes "corepack@${COREPACK_VERSION}" -- yarn lint ;;
+          *) exit 1 ;;
+        esac
 
     - name: Run type check
-      run: yarn typecheck || npm run typecheck
+      env:
+        PACKAGE_MANAGER: ${{ inputs.package-manager }}
+        COREPACK_VERSION: ${{ inputs.corepack-version }}
+      run: |
+        case "$PACKAGE_MANAGER" in
+          npm) npm run typecheck ;;
+          yarn) npm exec --yes "corepack@${COREPACK_VERSION}" -- yarn typecheck ;;
+          *) exit 1 ;;
+        esac
 
     - name: Run tests
-      run: yarn test || npm test
+      env:
+        PACKAGE_MANAGER: ${{ inputs.package-manager }}
+        COREPACK_VERSION: ${{ inputs.corepack-version }}
+      run: |
+        case "$PACKAGE_MANAGER" in
+          npm) npm test ;;
+          yarn) npm exec --yes "corepack@${COREPACK_VERSION}" -- yarn test ;;
+          *) exit 1 ;;
+        esac
