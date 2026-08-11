@@ -139,7 +139,21 @@ jobs:
       run: go run honnef.co/go/tools/cmd/staticcheck@${{ inputs.staticcheck-version }} ./...
 
     - name: Scan reachable vulnerabilities
-      run: go run golang.org/x/vuln/cmd/govulncheck@${{ inputs.govulncheck-version }} ./...
+      # A repo may carry scripts/vulncheck.sh to filter govulncheck through a
+      # reviewed advisory allowlist — the common case is an upstream dependency
+      # whose client package shares a module with its server (e.g. the Ollama
+      # SDK), so every server-side advisory lands on the repo and none has a
+      # fixed version. A permanently-red scanner is one nobody reads, so the
+      # repo filters the reviewed entries and fails only on anything new. When
+      # that script is present, defer to it so a deliberately-allowlisted
+      # advisory does not keep CI red; otherwise run raw govulncheck so the gate
+      # still binds for repos without an allowlist.
+      run: |
+        if [ -f scripts/vulncheck.sh ]; then
+          sh ./scripts/vulncheck.sh
+        else
+          go run golang.org/x/vuln/cmd/govulncheck@${{ inputs.govulncheck-version }} ./...
+        fi
 
     - name: Run gosec
       run: go run github.com/securego/gosec/v2/cmd/gosec@${{ inputs.gosec-version }} -quiet ./...
