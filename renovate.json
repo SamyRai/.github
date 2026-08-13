@@ -184,6 +184,14 @@
       "allowedVersions": "<3.14"
     },
     {
+      "description": "Pin goldmark-emoji to v1.x to prevent major v2 bump being bundled into unrelated PRs (e.g. go toolchain bumps). Consumed only by gdk-markdown.",
+      "matchDepNames": [
+        "github.com/yuin/goldmark-emoji"
+      ],
+      "allowedVersions": ">=1.x <2.0.0",
+      "groupName": null
+    },
+    {
       "description": "Our own immutable, timestamp-tagged images (registry.bk.glpx.pro): auto-merge on green CI. Tag format YYYYMMDDHHMMSS[-<sha7>], emitted by the reusable docker-ci.yml. Newest timestamp wins; the sha suffix is matched but ignored for ordering. MUST stay last so it overrides the generic 'container image updates' group above.",
       "matchDatasources": [
         "docker"
@@ -216,7 +224,7 @@
       ]
     },
     {
-      "description": "Keep SHA-pinned references to this repo's reusable workflows up to date. Renovate's github-actions manager detects .gitea/workflows files but extracts NOTHING from `uses: mukimovd/.github/...`, because it assumes github.com and cannot resolve a self-hosted Gitea workflow ref — verified on mukimovd/gdk-mcp, whose dashboard lists the file with zero dependencies. That makes an unmanaged SHA pin a trap rather than a safety measure: go-agent pinned docker-ci.yml at 335b230f and sat 8 commits / 12 days stale, silently missing every fix. This manager resolves the pin against main's head via git-refs so a pinned consumer gets a reviewable bump PR instead of freezing. Inert for repos still on @main.",
+      "description": "Keep SHA-pinned references to this repo's reusable workflows up to date. Renovate's github-actions manager detects .gitea/workflows files but extracts NOTHING from `uses: mukimovd/.github/...`, because it assumes github.com and cannot resolve a self-hosted Gitea workflow ref \u2014 verified on mukimovd/gdk-mcp, whose dashboard lists the file with zero dependencies. That makes an unmanaged SHA pin a trap rather than a safety measure: go-agent pinned docker-ci.yml at 335b230f and sat 8 commits / 12 days stale, silently missing every fix. This manager resolves the pin against main's head via git-refs so a pinned consumer gets a reviewable bump PR instead of freezing. Inert for repos still on @main.",
       "customType": "regex",
       "managerFilePatterns": [
         "/^\\.gitea/workflows/.+\\.ya?ml$/"
