@@ -36,12 +36,17 @@ Configure these rules for the default branch (`main`) in each repository:
 
 - **Enable Actions** on every repo under `glpx/*` and `mukimovd/*`.
 - **Secrets strategy**: org (`glpx`) and user (`mukimovd`) level — never per-repo unless the
-  repo needs a divergent value (see `.gitea/README.md` § Secrets Strategy).
+  repo needs a divergent value or a narrower role-specific credential (see
+  `.gitea/README.md` § Secrets Strategy).
 - **Required secrets** (sourced from Vault, applied in the Gitea UI):
   - `REGISTRY_USERNAME` / `REGISTRY_PASSWORD` — Harbor push robot (per-app project-scoped, provisioned via `glpxctl harbor ensure`)
   - `GITEA_TOKEN` — runner-side Gitea clone/pull (user-level PAT)
   - `NPM_TOKEN` / `GLPX_NPM_TOKEN` — private `@glpx` Gitea npm registry
-  - `PUB_TOKEN` — private Gitea Dart pub registry (`read:package` + `write:package` PAT; mirrors `GLPX_NPM_TOKEN`'s pattern)
+  - `PUB_TOKEN` — private Gitea Dart pub registry. This is a deliberate
+    per-repository exception: consumer repos receive a dedicated `read:package`
+    PAT, while a package source repo receives its separate publish PAT. Reconcile
+    both roles with `glpxctl gitea package-bot`; never share the publisher token
+    with application CI or developer machines.
   - `DOCKERHUB_USERNAME` / `DOCKERHUB_TOKEN` — optional, upstream rate-limit headroom (user-level)
 
 ## Security

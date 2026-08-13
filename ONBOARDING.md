@@ -31,17 +31,18 @@ reference for what each primitive does.
 
 ## Prerequisites (one-time, per repo)
 
-The reusable workflows read secrets from the **org (`glpx`) and user (`mukimovd`) level** in
-Gitea — they propagate automatically. A new repo needs nothing provisioned unless it uses a
-secret outside that standard set. The standard secrets (sourced from Vault, applied in the
-Gitea UI) are:
+Most reusable-workflow secrets come from the **org (`glpx`) and user
+(`mukimovd`) level** in Gitea and propagate automatically. `PUB_TOKEN` is the
+intentional exception: its permissions depend on whether the repository
+publishes or only consumes packages, so `glpxctl` provisions it per repository.
+The standard secrets are:
 
 | Secret | Used by | Vault source |
 |---|---|---|
 | `NPM_TOKEN` | `deno-ci`, `node-ci`, `npm-publish`, `docker-ci` (build-time) | `secret/baikonur/registry/npm-reader` |
 | `REGISTRY_USERNAME` / `REGISTRY_PASSWORD` | `docker-ci`, `compose-ci`, `release` | Harbor robot `robot$renovate-reader` |
 | `GITEA_TOKEN` | `docker-ci` (custom checkout and BuildKit secret `id=gitea_token` for private Git dependencies), `release` (GoReleaser) | per-repo or user PAT |
-| `PUB_TOKEN` | `flutter-ci` and `docker-ci` when a Flutter app resolves private hosted Pub packages (`id=pub_token` inside BuildKit) | least-privilege `read:package` PAT |
+| `PUB_TOKEN` | `flutter-ci` and `docker-ci` when a Flutter app resolves private hosted Pub packages (`id=pub_token` inside BuildKit) | per-repo package-bot consumer credential (`read:package`) |
 | `DOCKERHUB_USERNAME` / `DOCKERHUB_TOKEN` | `docker-ci` (optional, upstream rate-limit headroom) | — |
 | `MODULE_READ_TOKEN` | `go-ci`, `go-integration-ci` (optional; only repos importing private `go.glpx.pro/*` modules) | `secret/baikonur/registry/gdk-module-reader` |
 | `GO_MODULE_TOKEN` | `docker-ci` (optional; only Dockerfiles that themselves run `go mod download`) | `secret/baikonur/registry/gdk-module-reader` |
@@ -52,6 +53,10 @@ private repos over git, while `GO_MODULE_TOKEN` is a `read:package` token for th
 Gitea Go module registry. A repo needs whichever matches how it fetches — the
 reusable Go workflows use the former; a Dockerfile doing its own `go mod
 download` uses the latter. See § Private Go modules below.
+
+For a private Pub publisher, use the same package-bot reconciliation with that
+repository as the package source. It receives a separate publish credential;
+never promote the consumer `PUB_TOKEN` or a developer reader to write access.
 
 See [`.gitea/README.md`](./.gitea/README.md) § Secrets Strategy for the full rationale.
 
