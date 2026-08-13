@@ -55,6 +55,36 @@ download` uses the latter. See § Private Go modules below.
 
 See [`.gitea/README.md`](./.gitea/README.md) § Secrets Strategy for the full rationale.
 
+## Private Pub packages on a developer machine
+
+The reusable Flutter workflow already scopes `PUB_TOKEN` to its authenticated
+install step. Local development needs a separate credential: do not copy an
+Actions secret or reuse an administrator/general-purpose Tea token. Provision a
+machine-specific `read:package` token through `glpxctl`, which hands it directly
+to Dart's credential store without printing it or placing it in argv:
+
+```bash
+glpxctl gitea package-bot local-reader \
+  --repo glpx/flutter-dev-kit \
+  --reader-name damir-mac \
+  --gitea-login glpx \
+  --allow-runtime-write
+```
+
+Use a stable lowercase reader name per machine. Re-running the command rotates
+only that machine's `pkg-local-read-<reader-name>-*` credential family; package
+publishing, Gitea consumer CI, GitHub replicas, and other developer readers are
+unchanged. Verify by repository name only, then perform the locked online
+install:
+
+```bash
+dart pub token list
+flutter pub get --enforce-lockfile
+```
+
+`flutter pub get --offline` is useful only after the exact hosted package is in
+the local cache. An uncached offline failure is not an authentication failure.
+
 ## Private Go modules (`go.glpx.pro/*`)
 
 The `gdk-*` kits are private Gitea repositories published under the `go.glpx.pro`
