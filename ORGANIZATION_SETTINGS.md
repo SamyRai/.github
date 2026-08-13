@@ -23,6 +23,8 @@ Configure these rules for the default branch (`main`) in each repository:
 - **Require status checks to pass before merging**
   - Require branches to be up to date before merging: Yes
   - Required checks: the reusable CI workflow(s) the repo calls (e.g. `go-ci`, `deno-ci`)
+  - Require the checks for the exact current pull-request head. Cancelled,
+    pending, unknown, or malformed Actions state is incomplete evidence.
 
 - **Require conversation resolution before merging**: Yes
 - **Do not allow force pushes**: Yes
@@ -31,6 +33,12 @@ Configure these rules for the default branch (`main`) in each repository:
 > [!WARNING]
 > The `mukimovd` namespace is single-operator; strict branch protection there can deadlock
 > merges (no second reviewer). Apply these rules to the `glpx` org repos and any multi-contributor `mukimovd` repo. For solo `mukimovd` repos, require status checks only.
+
+Administrator and automation bypasses must not waive required checks. The solo
+namespace may relax the reviewer count, but not the exact-head locked install,
+tests, security gates, or generated-artifact checks. If the forge cannot enforce
+that distinction, treat administrator override as an operational exception and
+verify the exact head before merge.
 
 ## Gitea Actions Settings
 
@@ -69,3 +77,16 @@ Gitea uses the `.github` repo at the org/user root as the source of default comm
 files and (for the `profile/README.md`) the org profile page. This is why
 `mukimovd/.github` exists. The legacy `glpx/.github` was a drifted copy; it has been mirrored
 to match `mukimovd/.github` so both namespaces see the same defaults.
+
+## Open enforcement gaps
+
+- [ ] Audit repositories that forward `PUB_TOKEN`: each must have a real hosted
+      Pub dependency and its own role-appropriate package-bot credential; repos
+      without one must not inherit a token.
+- [ ] Add a reusable disposable empty-cache **online** hosted-consumer check.
+      Keep warmed `--offline` resolution as a separate cache-integrity check.
+- [ ] Reject dependency-update pull requests when their manifests, lockfiles,
+      or generated dependency artifacts disagree, before any administrator or
+      Renovate merge path can bypass the failure.
+- [ ] Verify Gitea/GitHub mirror parity by exact commit after authoritative
+      Gitea merges, and alert rather than silently accepting drift.

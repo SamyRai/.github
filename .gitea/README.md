@@ -77,9 +77,14 @@ jobs:
   private Gitea pub registry (`https://gitea.bk.glpx.pro/api/packages/glpx/pub/`). Scaffold:
   [`../templates/ci/flutter-package.yml`](../templates/ci/flutter-package.yml).
 
-**Required secret:** `PUB_TOKEN` — a Gitea PAT with `read:package` + `write:package`, stored
-at the `glpx` org / `mukimovd` user level (same strategy as `GLPX_NPM_TOKEN`). First publish
-of a new package name works without ceremony (no pub.dev "manual first publish" gate).
+**Credential contract:** `PUB_TOKEN` is deliberately repository-scoped for
+private Pub. A package-source repository calling `dart-publish.yml` receives a
+dedicated publish PAT with the package permissions required by that workflow. A
+repository calling `flutter-ci.yml` only to consume hosted packages receives a
+different `read:package` PAT. Developer machines use their own named local
+reader. Never install the publisher credential at organization/user scope or
+reuse it for a consumer or workstation. First publish of a new package name
+works without ceremony (no pub.dev "manual first publish" gate).
 
 Flutter consumers with private Git dependencies may additionally forward
 `GIT_READ_TOKEN`, backed by a least-privilege `read:repository` PAT. It is scoped to the
@@ -123,6 +128,28 @@ jobs:
       PUB_TOKEN: ${{ secrets.PUB_TOKEN }}
 ```
 
+### Private Pub resolution evidence
+
+The reusable Flutter lane has one authenticated boundary:
+
+1. authenticate to the configured hosted registry;
+2. run `flutter pub get --enforce-lockfile` with the private-Pub and optional
+   private-Git readers available;
+3. run custom verification, analysis, tests, and web builds against the
+   installed package configuration without resolving again (`--no-pub`).
+
+A cold-cache proof must be online and start with an empty disposable
+`PUB_CACHE`; it demonstrates that the hosted artifact and per-repository
+consumer credential work. `flutter pub get --offline` is only a second,
+warmed-cache proof. It cannot fetch an absent artifact, so its failure does not
+diagnose authentication.
+
+Private hosted Pub and private Git are separate trust boundaries. `PUB_TOKEN`
+must carry only the package capability required by the repository;
+`GIT_READ_TOKEN` carries `read:repository` for commit-pinned Git sources. Keep
+both confined to the install step, and require custom `verify-command` values
+to skip dependency resolution.
+
 ## Python Version Restrictions
 
 **Note on Python:** Python is intentionally restricted to `3.13` and must not be bumped to `3.14+`. This is enforced in the root `renovate.json` configuration via `allowedVersions: "<3.14"` to prevent automated dependency updates from upgrading the Python version constraint across workflows.
@@ -131,11 +158,19 @@ jobs:
 
 To keep workflows trivial and sidestep `ServiceAccount`-in-job complications, we avoid complex automated secret synchronizers or DinD runners with Vault mounting.
 
-Instead, secrets are managed **globally at the organization (`glpx`) and user (`mukimovd`) level** within the Gitea UI.
+Instead, broadly shared infrastructure readers are managed **globally at the
+organization (`glpx`) and user (`mukimovd`) level** within the Gitea UI. A
+credential whose permission depends on the repository remains repository
+scoped.
 
-- Keys like `GLPX_NPM_TOKEN`, `REGISTRY_USERNAME`, and `REGISTRY_PASSWORD` (or `HARBOR_*`) are set globally for the `mukimovd` user and the `glpx` organization.
-- This ensures they automatically propagate and work across all repositories without needing to inject them manually into every new repo.
-- The single source of truth for these tokens remains in Vault (e.g., `secret/baikonur/registry/npm-reader`), and they are manually applied to the org/user in Gitea.
+- Keys like `GLPX_NPM_TOKEN` may be set globally when their role is genuinely
+  identical across consumers. Harbor push credentials remain project-scoped.
+- `PUB_TOKEN` is a per-repository exception: publishers and consumers receive
+  different tokens and scopes. A repository with no hosted Pub dependency gets
+  no Pub credential.
+- The single source of truth for managed credentials remains Vault. Reconcile
+  the package roles through `glpxctl gitea package-bot`; do not copy values
+  between repository, organization, or developer stores.
 
 ## Historical Context & Root Causes
 
