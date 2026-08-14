@@ -32,18 +32,18 @@
   },
   "kubernetes": {
     "managerFilePatterns": [
-      "//(^|/)(k8s|kubernetes|manifests|deploy|deployments|clusters|apps)/.+\\.ya?ml$//"
+      "/(^|/)(k8s|kubernetes|manifests|deploy|deployments|clusters|apps)/.+\\.ya?ml$/"
     ]
   },
   "helmv3": {
     "managerFilePatterns": [
-      "//(^|/)Chart\\.ya?ml$//"
+      "/(^|/)Chart\\.ya?ml$/"
     ]
   },
   "helm-values": {
     "managerFilePatterns": [
-      "//(^|/)values\\.ya?ml$//",
-      "//(^|/)values[-.][^/]+\\.ya?ml$//"
+      "/(^|/)values\\.ya?ml$/",
+      "/(^|/)values[-.][^/]+\\.ya?ml$/"
     ]
   },
   "lockFileMaintenance": {
@@ -214,9 +214,9 @@
     {
       "description": "Detect registry.bk.glpx.pro images in Helm values at any nesting depth (a `repository:` line followed by a `tag:` line). Covers single- and multi-image charts the helm-values manager misses. Versioning + automerge come from the registry packageRule above (matched by package name).",
       "customType": "regex",
-      "filePatterns": [
-        "//(^|/)values\\.ya?ml$//",
-        "//(^|/)values[-.][^/]+\\.ya?ml$//"
+      "managerFilePatterns": [
+        "/(^|/)values\\.ya?ml$/",
+        "/(^|/)values[-.][^/]+\\.ya?ml$/"
       ],
       "datasourceTemplate": "docker",
       "matchStrings": [
@@ -226,7 +226,7 @@
     {
       "description": "Keep SHA-pinned references to this repo's reusable workflows up to date. Renovate's github-actions manager detects .gitea/workflows files but extracts NOTHING from `uses: mukimovd/.github/...`, because it assumes github.com and cannot resolve a self-hosted Gitea workflow ref \u2014 verified on mukimovd/gdk-mcp, whose dashboard lists the file with zero dependencies. That makes an unmanaged SHA pin a trap rather than a safety measure: go-agent pinned docker-ci.yml at 335b230f and sat 8 commits / 12 days stale, silently missing every fix. This manager resolves the pin against main's head via git-refs so a pinned consumer gets a reviewable bump PR instead of freezing. Inert for repos still on @main. Scope covers three roots because a reusable-workflow ref is not confined to .gitea/workflows: consumers call these from .github/workflows too (go-agent's go-ci pin lives there, and being out of scope is exactly why it drifted to 33 commits / 26 days stale \u2014 worse than the 8/12 that motivated this manager), and templates/ci/ is where new repos are scaffolded from, so an unmanaged pin there is inherited by every future repo.",
       "customType": "regex",
-      "filePatterns": [
+      "managerFilePatterns": [
         "/^\\.gitea/workflows/.+\\.ya?ml$/",
         "/^\\.github/workflows/.+\\.ya?ml$/",
         "/^templates/ci/.+\\.ya?ml$/"
