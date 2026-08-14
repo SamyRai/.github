@@ -74,7 +74,7 @@ jobs:
     - name: Set up Go
       uses: actions/setup-go@4dc6199c7b1a012772edbd06daecab0f50c9053c # v6.1.0
       with:
-        go-version: ${{ inputs.go-version }}
+        go-version-file: go.mod
 
     - name: Cache Go modules
       uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5.0.3
@@ -152,7 +152,7 @@ jobs:
         if [ -f scripts/vulncheck.sh ]; then
           sh ./scripts/vulncheck.sh
         else
-          go run golang.org/x/vuln/cmd/govulncheck@${{ inputs.govulncheck-version }} ./...
+          go run golang.org/x/vuln/cmd/govulncheck@latest ./...
         fi
 
     - name: Run gosec
