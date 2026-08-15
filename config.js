@@ -132,6 +132,20 @@ module.exports = {
       matchHost: "gitea.bk.glpx.pro",
       ...(process.env.RENOVATE_TOKEN && { token: process.env.RENOVATE_TOKEN }),
     },
+    {
+      // Public npm registry - increase concurrency for better performance
+      matchHost: "registry.npmjs.org",
+      hostType: "npm",
+      concurrentRequestLimit: 10,
+      timeout: 60000,
+    },
+    {
+      // Yarn registry configuration - handle Yarn Classic and Berry compatibility
+      matchHost: "yarnpkg.com",
+      hostType: "npm",
+      concurrentRequestLimit: 5,
+      timeout: 60000,
+    },
   ],
 
   // Go env for the private module namespace, mirroring what the reusable
