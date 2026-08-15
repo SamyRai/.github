@@ -155,7 +155,7 @@ jobs:
       # still binds for repos without an allowlist.
       run: |
         if [ -f scripts/vulncheck.sh ]; then
-          sh ./scripts/vulncheck.sh
+          bash ./scripts/vulncheck.sh
         else
           go run golang.org/x/vuln/cmd/govulncheck@latest ./...
         fi
