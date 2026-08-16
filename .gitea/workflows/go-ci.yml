@@ -3,10 +3,17 @@ on:
   workflow_call:
     inputs:
       go-version:
-        description: 'Go version to use'
+        description: >-
+          Explicit Go version, overriding the caller's go.mod. Leave empty
+          (the default) to take the toolchain from go.mod, which is what
+          almost every repo wants. Set it only to force a floor that go.mod
+          does not yet declare — note GOTOOLCHAIN=local below means a
+          `toolchain` directive in go.mod cannot raise the version on its own,
+          so a stale `go` directive otherwise silently builds and
+          vulnerability-scans against an old stdlib.
         required: false
         type: string
-        default: '1.26'
+        default: ''
       run-module-family:
         description: 'Also run a module-family job (setup-go + auth + tools + `make verify` across every nested module). For multi-module kits; replaces the per-repo duplicate module-family job.'
         required: false
@@ -79,7 +86,16 @@ jobs:
     - name: Set up Go
       uses: actions/setup-go@4dc6199c7b1a012772edbd06daecab0f50c9053c # v6.1.0
       with:
-        go-version-file: go.mod
+        # setup-go prefers go-version when it is non-empty and falls back to
+        # go-version-file otherwise, so the default empty input preserves the
+        # historical go.mod behaviour for every existing caller.
+        go-version: ${{ inputs.go-version }}
+        # `defaults.run.working-directory` only relocates `run:` steps, never a
+        # `uses:` step, so this path must be joined explicitly. Without it a repo
+        # whose module lives in a subdirectory fails here with "The specified go
+        # version file at: go.mod does not exist" and cannot use this workflow at
+        # all. Default '.' yields './go.mod', identical to the previous literal.
+        go-version-file: ${{ inputs.working-directory }}/go.mod
 
     - name: Cache Go modules
       uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5.0.3
@@ -157,11 +173,18 @@ jobs:
         if [ -f scripts/vulncheck.sh ]; then
           bash ./scripts/vulncheck.sh
         else
-          go run golang.org/x/vuln/cmd/govulncheck@latest ./...
+          go run golang.org/x/vuln/cmd/govulncheck@${{ inputs.govulncheck-version }} ./...
         fi
 
     - name: Run gosec
-      run: go run github.com/securego/gosec/v2/cmd/gosec@${{ inputs.gosec-version }} -quiet ./...
+      # -exclude-generated skips files carrying the "Code generated ... DO NOT
+      # EDIT." header. Without it, protoc-gen-go's standard zero-copy
+      # descriptor embedding (unsafe.Slice/unsafe.StringData) trips G103 in
+      # every *.pb.go, which is unfixable by design: hand-edits are lost on the
+      # next regeneration, and regenerating with a newer protoc-gen-go
+      # reproduces the identical pattern. Any repo with protobuf stubs was
+      # otherwise permanently red no matter how clean its own code was.
+      run: go run github.com/securego/gosec/v2/cmd/gosec@${{ inputs.gosec-version }} -quiet -exclude-generated ./...
 
     - name: Check go mod tidy
       # -diff is non-mutating and also reports a missing, newly required
@@ -179,6 +202,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: actions/setup-go@4dc6199c7b1a012772edbd06daecab0f50c9053c # v6.1.0
         with:
+          go-version: ${{ inputs.go-version }}
           go-version-file: go.mod
       - name: Configure private Go module access
         env:
@@ -190,10 +214,14 @@ jobs:
             echo "::warning::MODULE_READ_TOKEN unset; private go.glpx.pro modules cannot be fetched"
           fi
       - name: Install pinned quality tools
+        # Versions come from the workflow inputs so this job cannot drift from
+        # the `test` job's gate. govulncheck was previously @latest here, which
+        # made the declared govulncheck-version input fiction and let a security
+        # scanner change underneath callers without a commit.
         run: |
-          go install honnef.co/go/tools/cmd/staticcheck@v0.7.0
-          go install golang.org/x/vuln/cmd/govulncheck@latest
-          go install github.com/securego/gosec/v2/cmd/gosec@v2.28.0
+          go install honnef.co/go/tools/cmd/staticcheck@${{ inputs.staticcheck-version }}
+          go install golang.org/x/vuln/cmd/govulncheck@${{ inputs.govulncheck-version }}
+          go install github.com/securego/gosec/v2/cmd/gosec@${{ inputs.gosec-version }}
           go install github.com/vladopajic/go-test-coverage/v2@v2.19.0
       - name: Validate every module
         run: make verify
