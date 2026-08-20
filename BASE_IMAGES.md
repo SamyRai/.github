@@ -24,7 +24,7 @@ cacheable, and independent of Docker Hub anonymous rate limits.
 
 | Stack | Build base | Runtime base | Notes |
 |---|---|---|---|
-| Go | `library/golang:1.26-alpine` | `gcr.io/distroless/static-debian12:nonroot` | Curated historical builder; non-Docker-Hub runtime |
+| Go | `base/go:1.26` (built from `shared/docker-images/go/Dockerfile` in the cluster repo) | `library/alpine:3.21` (curated mirror) | `base/go` is the source-owned builder; `library/*` is mirrored via `docker-mirror-library.yml` |
 | Rust | `dockerhub-proxy/rust:1.x-bookworm` | `dockerhub-proxy/debian:bookworm-slim` | Pin both |
 | Deno | `dockerhub-proxy/denoland/deno:debian-<ver>` | same | Pin (for example `2.9.3`) |
 | Flutter web | `dockerhub-proxy/debian:bookworm-slim` + checksum-verified Flutter SDK archive | `dockerhub-proxy/nginxinc/nginx-unprivileged:<ver>-alpine` | Pin image digests and SDK checksum |
